@@ -1,36 +1,73 @@
+"use client";
+
+import { useState } from "react";
 import { Ruler, Weight } from "lucide-react";
+import { toast } from "sonner";
 import { MetricChartCard } from "@/components/charts/MetricChartCard";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { ErrorState } from "@/components/shared/ErrorState";
-import { fetchGrowthRecords } from "@/lib/data/queries";
-import { loadViewData } from "@/lib/data/load";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAppData } from "@/components/providers/AppDataProvider";
 import { formatAppDate } from "@/lib/date";
-import type { DailyMetricPoint, GrowthPoint } from "@/types/domain";
+import { jstYmd } from "@/lib/data/app-state";
+import type { DailyMetricPoint } from "@/types/domain";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
-function toWeightSeries(records: GrowthPoint[]): DailyMetricPoint[] {
-  return records
+export function GrowthScreen() {
+  const { growth, addGrowth, deleteGrowth, now } = useAppData();
+  const [weightKg, setWeightKg] = useState("");
+  const [heightCm, setHeightCm] = useState("");
+  const [headCm, setHeadCm] = useState("");
+  const [measuredAt, setMeasuredAt] = useState(jstYmd(now));
+  const [note, setNote] = useState("");
+
+  const weightSeries: DailyMetricPoint[] = growth
     .filter((r) => r.weightG != null)
     .map((r) => ({
       date: r.measuredAt,
-      label: formatAppDate(new Date(r.measuredAt), "M/d"),
+      label: formatAppDate(new Date(`${r.measuredAt}T12:00:00+09:00`), "M/d"),
       value: Number(((r.weightG ?? 0) / 1000).toFixed(2)),
     }));
-}
 
-export async function GrowthScreen() {
-  const state = await loadViewData(() => fetchGrowthRecords());
-  if (state.status === "error") {
-    return <ErrorState message={state.message} />;
-  }
-
-  const records = state.data;
-  const weightSeries = toWeightSeries(records);
-  const latest = records.at(-1);
-  const previous = records.at(-2);
+  const latest = [...growth].reverse()[0];
+  const previous = [...growth].reverse()[1];
   const weightDiffG =
     latest?.weightG != null && previous?.weightG != null
       ? latest.weightG - previous.weightG
       : null;
+
+  const handleAdd = () => {
+    const weightG = weightKg ? Math.round(Number(weightKg) * 1000) : null;
+    const height = heightCm ? Number(heightCm) : null;
+    const head = headCm ? Number(headCm) : null;
+    if (weightG == null && height == null && head == null) {
+      toast.error("体重・身長・頭囲のいずれかを入力してください");
+      return;
+    }
+    addGrowth({
+      measuredAt,
+      weightG,
+      heightCm: height,
+      headCircumferenceCm: head,
+      note: note.trim() || null,
+    });
+    toast.success("成長記録を保存しました");
+    setWeightKg("");
+    setHeightCm("");
+    setHeadCm("");
+    setNote("");
+  };
 
   return (
     <div className="space-y-4">
@@ -38,6 +75,69 @@ export async function GrowthScreen() {
         <h1 className="text-xl font-bold">成長記録</h1>
         <p className="text-sm text-muted-foreground">体重・身長・頭囲の推移</p>
       </header>
+
+      <section className="space-y-3 rounded-2xl bg-card p-4 shadow-soft">
+        <p className="text-sm font-medium">新しい測定を追加</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="measuredAt">測定日</Label>
+            <Input
+              id="measuredAt"
+              type="date"
+              className="h-11"
+              value={measuredAt}
+              onChange={(e) => setMeasuredAt(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="weightKg">体重 (kg)</Label>
+            <Input
+              id="weightKg"
+              inputMode="decimal"
+              className="h-11"
+              value={weightKg}
+              onChange={(e) => setWeightKg(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="heightCm">身長 (cm)</Label>
+            <Input
+              id="heightCm"
+              inputMode="decimal"
+              className="h-11"
+              value={heightCm}
+              onChange={(e) => setHeightCm(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="headCm">頭囲 (cm)</Label>
+            <Input
+              id="headCm"
+              inputMode="decimal"
+              className="h-11"
+              value={headCm}
+              onChange={(e) => setHeadCm(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="growthNote">メモ</Label>
+          <Input
+            id="growthNote"
+            className="h-11"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </div>
+        <Button
+          type="button"
+          className="tap-target h-11 w-full"
+          onClick={handleAdd}
+          aria-label="成長記録を保存"
+        >
+          保存する
+        </Button>
+      </section>
 
       {latest ? (
         <section className="grid grid-cols-2 gap-3">
@@ -80,18 +180,15 @@ export async function GrowthScreen() {
         emptyTitle="成長データがまだありません"
       />
 
-      {records.length === 0 ? (
+      {growth.length === 0 ? (
         <EmptyState
           title="成長記録がありません"
           description="健診や家庭での測定結果を残すと、増減が分かりやすくなります"
         />
       ) : (
         <ul className="space-y-3">
-          {[...records].reverse().map((record) => (
-            <li
-              key={record.id}
-              className="rounded-2xl bg-card p-4 shadow-soft"
-            >
+          {[...growth].reverse().map((record) => (
+            <li key={record.id} className="rounded-2xl bg-card p-4 shadow-soft">
               <p className="text-sm font-semibold">{record.measuredAt}</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 体重{" "}
@@ -104,6 +201,39 @@ export async function GrowthScreen() {
               {record.note ? (
                 <p className="mt-2 text-sm text-foreground">{record.note}</p>
               ) : null}
+              <AlertDialog>
+                <AlertDialogTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="mt-2 h-10 px-2 text-destructive"
+                      aria-label="成長記録を削除"
+                    />
+                  }
+                >
+                  削除
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>削除しますか？</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      この成長記録を削除します。元に戻せません。
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        deleteGrowth(record.id);
+                        toast.success("削除しました");
+                      }}
+                    >
+                      削除する
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </li>
           ))}
         </ul>

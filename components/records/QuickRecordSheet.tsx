@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   AlertTriangle,
   Baby,
@@ -8,6 +9,7 @@ import {
   Moon,
   Thermometer,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Drawer,
   DrawerContent,
@@ -16,9 +18,12 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import type { QuickRecordAction } from "@/types/domain";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useAppData } from "@/components/providers/AppDataProvider";
+import type { DiaperKind, QuickRecordAction } from "@/types/domain";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 
 interface QuickRecordSheetProps {
   open: boolean;
@@ -36,45 +41,51 @@ const ACTIONS: Array<{
   {
     key: "breast",
     label: "母乳",
-    description: "左右の授乳時間を記録",
+    description: "左右の授乳時間",
     icon: Baby,
     tone: "bg-primary/30",
   },
   {
     key: "formula",
     label: "ミルク",
-    description: "飲んだ量をすばやく記録",
+    description: "飲んだ量 (ml)",
     icon: Milk,
     tone: "bg-accent/70",
   },
   {
     key: "sleep",
     label: "睡眠",
-    description: "開始・終了をタップで記録",
+    description: "開始 / 終了を切替",
     icon: Moon,
     tone: "bg-secondary/50",
   },
   {
     key: "diaper",
     label: "おむつ",
-    description: "尿・便・両方を選択",
+    description: "尿・便・両方",
     icon: Droplets,
     tone: "bg-mint/60",
   },
   {
     key: "temperature",
     label: "体温",
-    description: "検温結果を残す",
+    description: "検温結果",
     icon: Thermometer,
     tone: "bg-muted",
   },
   {
     key: "concern",
     label: "困り事",
-    description: "気になることをメモ",
+    description: "気になること",
     icon: AlertTriangle,
     tone: "bg-destructive/15",
   },
+];
+
+const DIAPER_OPTIONS: Array<{ value: DiaperKind; label: string }> = [
+  { value: "urine", label: "尿" },
+  { value: "stool", label: "便" },
+  { value: "both", label: "尿・便" },
 ];
 
 export function QuickRecordSheet({
@@ -82,10 +93,55 @@ export function QuickRecordSheet({
   onOpenChange,
   initialAction = null,
 }: QuickRecordSheetProps) {
+  const { quickSave, status, currentUser } = useAppData();
   const [selected, setSelected] = useState<QuickRecordAction | null>(
     initialAction,
   );
+  const [saving, setSaving] = useState(false);
+  const [amountMl, setAmountMl] = useState("120");
+  const [leftMinutes, setLeftMinutes] = useState("8");
+  const [rightMinutes, setRightMinutes] = useState("6");
+  const [diaperKind, setDiaperKind] = useState<DiaperKind>("urine");
+  const [celsius, setCelsius] = useState("36.5");
+  const [concernTitle, setConcernTitle] = useState("");
+  const [concernBody, setConcernBody] = useState("");
+
   const selectedMeta = ACTIONS.find((item) => item.key === selected);
+
+  const handleSave = () => {
+    if (!selected || saving) return;
+    setSaving(true);
+    try {
+      if (selected === "sleep") {
+        const wasSleeping = status.isSleeping;
+        quickSave("sleep");
+        toast.success(wasSleeping ? "睡眠を終了しました" : "睡眠を開始しました");
+      } else if (selected === "formula") {
+        quickSave("formula", { amountMl: Number(amountMl) || 120 });
+        toast.success("ミルクを記録しました");
+      } else if (selected === "breast") {
+        quickSave("breast", {
+          leftMinutes: Number(leftMinutes) || 0,
+          rightMinutes: Number(rightMinutes) || 0,
+        });
+        toast.success("母乳を記録しました");
+      } else if (selected === "diaper") {
+        quickSave("diaper", { diaperKind });
+        toast.success("おむつを記録しました");
+      } else if (selected === "temperature") {
+        quickSave("temperature", { celsius: Number(celsius) || 36.5 });
+        toast.success("体温を記録しました");
+      } else if (selected === "concern") {
+        quickSave("concern", { concernTitle, concernBody });
+        toast.success("困り事を記録しました");
+      }
+      onOpenChange(false);
+    } catch {
+      toast.error("保存に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -93,9 +149,10 @@ export function QuickRecordSheet({
         <DrawerHeader className="text-left">
           <DrawerTitle className="text-lg">クイック記録</DrawerTitle>
           <DrawerDescription>
+            記録者: {currentUser.displayName}
             {selectedMeta
-              ? `${selectedMeta.label}の記録内容を選んで保存できます（UIデモ）`
-              : "片手で届く位置から種類を選んでください"}
+              ? ` ／ ${selectedMeta.label}`
+              : " ／ 種類を選んで保存"}
           </DrawerDescription>
         </DrawerHeader>
 
@@ -133,37 +190,144 @@ export function QuickRecordSheet({
             })}
           </div>
 
-          {selectedMeta ? (
-            <div className="rounded-2xl bg-card p-4 shadow-soft">
-              <p className="text-sm font-medium text-foreground">
-                {selectedMeta.label}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {selectedMeta.description}
-              </p>
-              <div className="mt-4 flex gap-2">
-                <Button
+          {selected === "formula" ? (
+            <Field label="ミルク量 (ml)">
+              <Input
+                inputMode="numeric"
+                value={amountMl}
+                onChange={(e) => setAmountMl(e.target.value)}
+                className="h-11"
+                aria-label="ミルク量"
+              />
+            </Field>
+          ) : null}
+
+          {selected === "breast" ? (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="左 (分)">
+                <Input
+                  inputMode="numeric"
+                  value={leftMinutes}
+                  onChange={(e) => setLeftMinutes(e.target.value)}
+                  className="h-11"
+                  aria-label="左の授乳時間"
+                />
+              </Field>
+              <Field label="右 (分)">
+                <Input
+                  inputMode="numeric"
+                  value={rightMinutes}
+                  onChange={(e) => setRightMinutes(e.target.value)}
+                  className="h-11"
+                  aria-label="右の授乳時間"
+                />
+              </Field>
+            </div>
+          ) : null}
+
+          {selected === "diaper" ? (
+            <div className="flex gap-2">
+              {DIAPER_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
                   type="button"
-                  variant="outline"
-                  className="tap-target h-11 flex-1"
-                  onClick={() => onOpenChange(false)}
-                  aria-label="閉じる"
+                  className={cn(
+                    "tap-target h-11 flex-1 rounded-xl border text-sm font-medium",
+                    diaperKind === option.value
+                      ? "border-primary bg-primary/30"
+                      : "border-border bg-card",
+                  )}
+                  aria-label={option.label}
+                  aria-pressed={diaperKind === option.value}
+                  onClick={() => setDiaperKind(option.value)}
                 >
-                  閉じる
-                </Button>
-                <Button
-                  type="button"
-                  className="tap-target h-11 flex-1"
-                  onClick={() => onOpenChange(false)}
-                  aria-label={`${selectedMeta.label}を保存（デモ）`}
-                >
-                  保存（デモ）
-                </Button>
-              </div>
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {selected === "temperature" ? (
+            <Field label="体温 (℃)">
+              <Input
+                inputMode="decimal"
+                value={celsius}
+                onChange={(e) => setCelsius(e.target.value)}
+                className="h-11"
+                aria-label="体温"
+              />
+            </Field>
+          ) : null}
+
+          {selected === "concern" ? (
+            <div className="space-y-3">
+              <Field label="タイトル">
+                <Input
+                  value={concernTitle}
+                  onChange={(e) => setConcernTitle(e.target.value)}
+                  className="h-11"
+                  placeholder="例: 夕方のぐずり"
+                  aria-label="困り事タイトル"
+                />
+              </Field>
+              <Field label="内容">
+                <Textarea
+                  value={concernBody}
+                  onChange={(e) => setConcernBody(e.target.value)}
+                  placeholder="様子や気になること"
+                  aria-label="困り事の内容"
+                />
+              </Field>
+            </div>
+          ) : null}
+
+          {selected === "sleep" ? (
+            <p className="rounded-xl bg-secondary/30 px-3 py-2 text-sm text-secondary-foreground">
+              {status.isSleeping
+                ? "いま睡眠中です。保存すると終了します。"
+                : "保存すると睡眠を開始します。"}
+            </p>
+          ) : null}
+
+          {selected ? (
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="tap-target h-11 flex-1"
+                onClick={() => onOpenChange(false)}
+                aria-label="閉じる"
+              >
+                閉じる
+              </Button>
+              <Button
+                type="button"
+                className="tap-target h-11 flex-1"
+                disabled={saving}
+                onClick={handleSave}
+                aria-label={`${selectedMeta?.label ?? "記録"}を保存`}
+              >
+                {saving ? "保存中…" : "保存"}
+              </Button>
             </div>
           ) : null}
         </div>
       </DrawerContent>
     </Drawer>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5 rounded-2xl bg-card p-3 shadow-soft">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      {children}
+    </div>
   );
 }

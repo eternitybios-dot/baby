@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertTriangle,
   Baby,
@@ -9,6 +11,7 @@ import {
 import type { CareRecord, CareRecordType } from "@/types/domain";
 import { timelinePrimaryText, timelineTimeText } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useOpenRecordDetail } from "@/components/layout/MobileAppShell";
 
 const ICON_MAP: Record<
   CareRecordType,
@@ -34,6 +37,7 @@ interface TimelineItemProps {
 }
 
 export function TimelineItem({ record }: TimelineItemProps) {
+  const openDetail = useOpenRecordDetail();
   const meta = ICON_MAP[record.recordType];
   const Icon = meta.icon;
 
@@ -59,14 +63,19 @@ export function TimelineItem({ record }: TimelineItemProps) {
         </span>
         <span className="absolute top-10 bottom-0 w-px bg-border" aria-hidden />
       </div>
-      <div className="min-w-0 flex-1 rounded-2xl bg-card p-3 shadow-soft">
+      <button
+        type="button"
+        onClick={() => openDetail(record)}
+        className="min-w-0 flex-1 rounded-2xl bg-card p-3 text-left shadow-soft transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/40 active:scale-[0.99]"
+        aria-label={`${timelinePrimaryText(record)}の詳細`}
+      >
         <p className="text-sm font-semibold text-foreground">
           {timelinePrimaryText(record)}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           記録者: {record.recorder.displayName}
         </p>
-      </div>
+      </button>
     </li>
   );
 }

@@ -1,17 +1,23 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import {
   Baby,
   ChevronRight,
   HeartHandshake,
   LineChart,
-  LogOut,
+  RotateCcw,
   Sparkles,
   Users,
 } from "lucide-react";
-import { ErrorState } from "@/components/shared/ErrorState";
-import { fetchBaby, fetchFamilySettings } from "@/lib/data/queries";
-import { loadViewData } from "@/lib/data/load";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAppData } from "@/components/providers/AppDataProvider";
 import { APP_NAME } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 
 const LINKS = [
   {
@@ -40,20 +46,19 @@ const LINKS = [
   },
 ] as const;
 
-export async function SettingsScreen() {
-  const state = await loadViewData(async () => {
-    const [baby, family] = await Promise.all([
-      fetchBaby(),
-      fetchFamilySettings(),
-    ]);
-    return { baby, family };
-  });
-
-  if (state.status === "error") {
-    return <ErrorState message={state.message} />;
-  }
-
-  const { baby, family } = state.data;
+export function SettingsScreen() {
+  const {
+    baby,
+    state,
+    currentUser,
+    setCurrentUser,
+    updateBaby,
+    resetDemoData,
+  } = useAppData();
+  const [name, setName] = useState(baby.name);
+  const [nickname, setNickname] = useState(baby.nickname ?? "");
+  const [birthDate, setBirthDate] = useState(baby.birthDate);
+  const [memo, setMemo] = useState(baby.memo ?? "");
 
   return (
     <div className="space-y-5">
@@ -63,37 +68,103 @@ export async function SettingsScreen() {
       </header>
 
       <section className="rounded-2xl bg-card p-4 shadow-soft">
-        <div className="mb-2 flex items-center gap-2 text-muted-foreground">
+        <div className="mb-3 flex items-center gap-2 text-muted-foreground">
           <Users className="size-4" aria-hidden />
-          <h2 className="text-sm font-medium">家族</h2>
+          <h2 className="text-sm font-medium">いまの記録者</h2>
         </div>
-        <p className="text-base font-semibold">{family.familyName}</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          招待コード:{" "}
-          <span className="font-medium text-foreground">{family.inviteCode}</span>
+        <div className="flex gap-2">
+          {state.family.members.map((member) => {
+            const selected = member.id === currentUser.id;
+            return (
+              <button
+                key={member.id}
+                type="button"
+                className={cn(
+                  "tap-target h-11 flex-1 rounded-xl border text-sm font-medium",
+                  selected
+                    ? "border-primary bg-primary/30 text-primary-foreground"
+                    : "border-border bg-background",
+                )}
+                aria-label={`${member.displayName}として記録`}
+                aria-pressed={selected}
+                onClick={() => {
+                  setCurrentUser(member.id);
+                  toast.success(`${member.displayName}に切り替えました`);
+                }}
+              >
+                {member.displayName}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          家族: {state.family.familyName}（認証なし・この端末に保存）
         </p>
-        <ul className="mt-3 space-y-1">
-          {family.members.map((member) => (
-            <li key={member.id} className="text-sm text-foreground">
-              {member.displayName}
-              <span className="text-muted-foreground">
-                （{member.role === "owner" ? "オーナー" : "メンバー"}）
-              </span>
-            </li>
-          ))}
-        </ul>
       </section>
 
-      <section className="rounded-2xl bg-card p-4 shadow-soft">
-        <div className="mb-2 flex items-center gap-2 text-muted-foreground">
+      <section className="space-y-3 rounded-2xl bg-card p-4 shadow-soft">
+        <div className="flex items-center gap-2 text-muted-foreground">
           <Baby className="size-4" aria-hidden />
-          <h2 className="text-sm font-medium">赤ちゃん</h2>
+          <h2 className="text-sm font-medium">赤ちゃん情報</h2>
         </div>
-        <p className="text-base font-semibold">{baby.name}</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          生年月日 {baby.birthDate}
-          {baby.nickname ? ` ／ ${baby.nickname}` : ""}
-        </p>
+        <div className="space-y-1">
+          <Label htmlFor="babyName">名前</Label>
+          <Input
+            id="babyName"
+            className="h-11"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="babyNickname">ニックネーム</Label>
+          <Input
+            id="babyNickname"
+            className="h-11"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="babyBirth">生年月日</Label>
+          <Input
+            id="babyBirth"
+            type="date"
+            className="h-11"
+            value={birthDate}
+            onChange={(e) => setBirthDate(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="babyMemo">メモ</Label>
+          <Input
+            id="babyMemo"
+            className="h-11"
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+          />
+        </div>
+        <Button
+          type="button"
+          className="tap-target h-11 w-full"
+          aria-label="赤ちゃん情報を保存"
+          onClick={() => {
+            if (!name.trim() || !birthDate) {
+              toast.error("名前と生年月日は必須です");
+              return;
+            }
+            updateBaby({
+              name: name.trim(),
+              nickname: nickname.trim() || null,
+              birthDate,
+              memo: memo.trim() || null,
+              avatarUrl: null,
+            });
+            toast.success("赤ちゃん情報を保存しました");
+          }}
+        >
+          保存する
+        </Button>
       </section>
 
       <nav className="space-y-2" aria-label="設定メニュー">
@@ -121,14 +192,19 @@ export async function SettingsScreen() {
         })}
       </nav>
 
-      <button
+      <Button
         type="button"
-        className="tap-target flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-medium text-muted-foreground shadow-soft"
-        aria-label="ログアウト（デモ）"
+        variant="outline"
+        className="tap-target flex h-12 w-full items-center justify-center gap-2"
+        aria-label="初期データに戻す"
+        onClick={() => {
+          resetDemoData();
+          toast.success("初期データに戻しました");
+        }}
       >
-        <LogOut className="size-4" aria-hidden />
-        ログアウト（デモ）
-      </button>
+        <RotateCcw className="size-4" aria-hidden />
+        初期データに戻す
+      </Button>
     </div>
   );
 }

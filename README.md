@@ -1,84 +1,57 @@
 # すくすくログ
 
-夫婦がそれぞれのスマートフォンから赤ちゃんの育児情報を素早く記録し、ほぼリアルタイムで共有できる Web アプリです。
+夫婦で使える、モバイル向け赤ちゃん育児記録 Web アプリです。
 
-## 現状
+## できること（完成版・認証なし）
 
-- Next.js（App Router）+ TypeScript strict + Tailwind CSS v4 + shadcn/ui
-- モバイルファースト UI（ホーム / カレンダー / グラフ / 設定 / 成長 / 困り事 / 習慣）
-- 下部ナビ + 中央記録ボタン + クイック記録ボトムシート
-- **モックデータ層**経由で表示（UI とデータ取得を分離済み）
-- 認証・Supabase・永続化は **未接続**（次フェーズ）
+- 授乳（母乳 / ミルク）、睡眠、おむつ、体温、困り事のクイック記録
+- ホームの状況・今日のサマリー・タイムライン
+- 記録の詳細表示・削除（確認あり）
+- 成長 / 困り事 / 習慣の追加・更新・削除
+- グラフ（睡眠・授乳・ミルク・おむつ・体重）を実データから集計
+- 記録者の切替（ママ / パパ）
+- 赤ちゃん情報の編集
 
-設計詳細: [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md)  
-フォルダ構成: [`docs/FOLDER_STRUCTURE.md`](./docs/FOLDER_STRUCTURE.md)
+データはこの端末の **localStorage** に保存されます（ログイン不要）。
 
-## 前提
-
-- Node.js 20+
-- npm
-
-## セットアップ
+## 動かしかた
 
 ```bash
 npm install
-cp .env.example .env.local
 npm run dev
 ```
 
-ブラウザで [http://localhost:3000](http://localhost:3000) を開くと `/home` へリダイレクトされます。
-
-画面幅 375px 想定。PC では中央 max 480px で表示されます。
+ブラウザで http://localhost:3000 を開きます（`/home` へ移動します）。
 
 ## 主な画面
 
 | パス | 内容 |
 |------|------|
-| `/home` | サマリー・クイック入力・タイムライン |
-| `/calendar` | 月カレンダー + 今日の記録 |
-| `/charts` | 睡眠・授乳・ミルク・おむつ・体重グラフ |
-| `/settings` | 家族・赤ちゃん・各機能への導線 |
-| `/growth` `/concerns` `/habits` `/records` | 各詳細画面 |
+| `/home` | ホーム・クイック入力・タイムライン |
+| `/calendar` | カレンダー |
+| `/charts` | グラフ |
+| `/settings` | 記録者切替・赤ちゃん情報・各機能への導線 |
+| `/growth` `/concerns` `/habits` `/records` | 各詳細 |
 
-中央の **記録** ボタン、またはホームのクイック入力からボトムシートが開きます。
+中央の **記録** ボタン、またはホームのクイック入力から保存できます。
 
-## データ層（Supabase 差し替え前提）
+## データ方針
 
-- 型: `types/domain.ts`
-- モック: `lib/data/mock/home.ts`
-- 抽象: `lib/data/source.ts`（`CareDataSource`）
-- UI 向け API: `lib/data/queries.ts`
-
-画面は `fetch*` 関数だけを呼び、モック／Supabase の実装詳細に依存しません。
-
-## 環境変数
-
-| 変数 | 公開範囲 | 説明 |
-|------|----------|------|
-| `NEXT_PUBLIC_SUPABASE_URL` | クライアント可 | Supabase プロジェクト URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | クライアント可 | anon / public key（RLS 前提） |
-| `SUPABASE_SERVICE_ROLE_KEY` | **サーバーのみ** | サービスロール（フロントに置かない） |
-| `NEXT_PUBLIC_APP_URL` | クライアント可 | Auth リダイレクト用アプリ URL |
-
-UI 確認時点では未設定でも起動できます。
+- UI は `useAppData()`（`components/providers/AppDataProvider.tsx`）経由
+- 永続化は `lib/data/app-state.ts` の localStorage
+- 認証・プロフィール画像・Supabase 連携は **対象外**（今回の完成版）
 
 ## スクリプト
 
 ```bash
-npm run dev       # 開発サーバー
-npm run build     # 本番ビルド
-npm run start     # 本番サーバー
-npm run lint      # ESLint
-npm run typecheck # TypeScript 型チェック
+npm run dev
+npm run build
+npm run start
+npm run lint
+npm run typecheck
 ```
 
-## 次のステップ
+## 補足
 
-1. Supabase 接続と `CareDataSource` の本番実装
-2. DB マイグレーション / RLS
-3. 認証・家族・赤ちゃん CRUD
-4. クイック記録の実保存・Realtime
-
-## ライセンス
-
-Private
+- 端末を変えるとデータは共有されません（端末内保存のため）
+- 設定の「初期データに戻す」でサンプルデータへリセットできます

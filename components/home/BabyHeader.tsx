@@ -24,19 +24,10 @@ export function BabyHeader({ baby, now, className }: BabyHeaderProps) {
         className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/25 ring-2 ring-primary/30"
         aria-hidden
       >
-        {baby.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={baby.avatarUrl}
-            alt=""
-            className="size-full object-cover"
-          />
-        ) : (
-          <BabyIcon className="size-7 text-primary-foreground" strokeWidth={1.75} />
-        )}
+        <BabyIcon className="size-7 text-primary-foreground" strokeWidth={1.75} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <h1 className="truncate text-xl font-bold tracking-tight text-foreground">
             {baby.name}
           </h1>

@@ -1,27 +1,12 @@
+"use client";
+
 import { CalendarMonth } from "@/components/home/CalendarMonth";
 import { Timeline } from "@/components/records/Timeline";
-import { ErrorState } from "@/components/shared/ErrorState";
-import {
-  fetchReferenceNow,
-  fetchTodayTimeline,
-} from "@/lib/data/queries";
-import { loadViewData } from "@/lib/data/load";
+import { useAppData } from "@/components/providers/AppDataProvider";
 import { formatAppDate } from "@/lib/date";
 
-export async function CalendarScreen() {
-  const state = await loadViewData(async () => {
-    const [timeline, now] = await Promise.all([
-      fetchTodayTimeline(),
-      fetchReferenceNow(),
-    ]);
-    return { timeline, now };
-  });
-
-  if (state.status === "error") {
-    return <ErrorState message={state.message} />;
-  }
-
-  const { timeline, now } = state.data;
+export function CalendarScreen() {
+  const { now, timeline } = useAppData();
 
   return (
     <div className="space-y-4">
@@ -33,7 +18,7 @@ export async function CalendarScreen() {
       </header>
 
       <CalendarMonth now={now} />
-      <Timeline records={timeline} title="選択日のタイムライン（今日）" />
+      <Timeline records={timeline} title="今日のタイムライン" />
     </div>
   );
 }

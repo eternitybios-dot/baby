@@ -1,10 +1,28 @@
+"use client";
+
+import { useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { ErrorState } from "@/components/shared/ErrorState";
-import { fetchConcerns } from "@/lib/data/queries";
-import { loadViewData } from "@/lib/data/load";
+import { useAppData } from "@/components/providers/AppDataProvider";
 import type { ConcernStatus } from "@/types/domain";
 import { formatClock, formatDisplayDate } from "@/lib/format";
+import { toJstIso } from "@/lib/data/app-state";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const STATUS_LABEL: Record<ConcernStatus, string> = {
   open: "未対応",
@@ -13,13 +31,38 @@ const STATUS_LABEL: Record<ConcernStatus, string> = {
   resolved: "解決",
 };
 
-export async function ConcernsScreen() {
-  const state = await loadViewData(() => fetchConcerns());
-  if (state.status === "error") {
-    return <ErrorState message={state.message} />;
-  }
+const STATUS_OPTIONS: ConcernStatus[] = [
+  "open",
+  "in_progress",
+  "watching",
+  "resolved",
+];
 
-  const items = state.data;
+export function ConcernsScreen() {
+  const { concerns, addConcern, updateConcern, deleteConcern } = useAppData();
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [category, setCategory] = useState("機嫌");
+
+  const handleAdd = () => {
+    if (!title.trim()) {
+      toast.error("タイトルを入力してください");
+      return;
+    }
+    addConcern({
+      title: title.trim(),
+      category,
+      body: body.trim() || "詳細未記入",
+      severity: 3,
+      actionTaken: null,
+      result: null,
+      status: "open",
+      occurredAt: toJstIso(),
+    });
+    toast.success("困り事を保存しました");
+    setTitle("");
+    setBody("");
+  };
 
   return (
     <div className="space-y-4">
@@ -30,14 +73,52 @@ export async function ConcernsScreen() {
         </p>
       </header>
 
-      {items.length === 0 ? (
+      <section className="space-y-3 rounded-2xl bg-card p-4 shadow-soft">
+        <p className="text-sm font-medium">新しい困り事</p>
+        <div className="space-y-1">
+          <Label htmlFor="concernTitle">タイトル</Label>
+          <Input
+            id="concernTitle"
+            className="h-11"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="concernCategory">カテゴリー</Label>
+          <Input
+            id="concernCategory"
+            className="h-11"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="concernBody">内容</Label>
+          <Textarea
+            id="concernBody"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+          />
+        </div>
+        <Button
+          type="button"
+          className="tap-target h-11 w-full"
+          onClick={handleAdd}
+          aria-label="困り事を保存"
+        >
+          保存する
+        </Button>
+      </section>
+
+      {concerns.length === 0 ? (
         <EmptyState
           title="困り事はまだありません"
           description="ぐずりや肌荒れなど、気になることを残しておくと振り返りやすくなります"
         />
       ) : (
         <ul className="space-y-3">
-          {items.map((item) => (
+          {concerns.map((item) => (
             <li key={item.id} className="rounded-2xl bg-card p-4 shadow-soft">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -51,15 +132,59 @@ export async function ConcernsScreen() {
               <p className="mt-3 text-sm leading-relaxed text-foreground">
                 {item.body}
               </p>
-              {item.actionTaken ? (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  対応: {item.actionTaken}
-                </p>
-              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {STATUS_OPTIONS.map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    className="tap-target rounded-full bg-muted px-3 py-2 text-xs font-medium"
+                    aria-label={`状態を${STATUS_LABEL[status]}にする`}
+                    onClick={() => {
+                      updateConcern(item.id, { status });
+                      toast.success(`状態を「${STATUS_LABEL[status]}」に更新`);
+                    }}
+                  >
+                    {STATUS_LABEL[status]}
+                  </button>
+                ))}
+              </div>
               <p className="mt-3 text-xs text-muted-foreground">
                 {formatDisplayDate(item.occurredAt)} {formatClock(item.occurredAt)}{" "}
                 ／ {item.recorder.displayName}
               </p>
+              <AlertDialog>
+                <AlertDialogTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="mt-2 h-10 px-2 text-destructive"
+                      aria-label="困り事を削除"
+                    />
+                  }
+                >
+                  削除
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>削除しますか？</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      この困り事を削除します。
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        deleteConcern(item.id);
+                        toast.success("削除しました");
+                      }}
+                    >
+                      削除する
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </li>
           ))}
         </ul>

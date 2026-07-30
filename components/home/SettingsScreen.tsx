@@ -7,7 +7,6 @@ import {
   ChevronRight,
   HeartHandshake,
   LineChart,
-  RotateCcw,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -53,7 +52,6 @@ export function SettingsScreen() {
     currentUser,
     setCurrentUser,
     updateBaby,
-    resetDemoData,
   } = useAppData();
   const [name, setName] = useState(baby.name);
   const [nickname, setNickname] = useState(baby.nickname ?? "");
@@ -191,20 +189,6 @@ export function SettingsScreen() {
           );
         })}
       </nav>
-
-      <Button
-        type="button"
-        variant="outline"
-        className="tap-target flex h-12 w-full items-center justify-center gap-2"
-        aria-label="初期データに戻す"
-        onClick={() => {
-          resetDemoData();
-          toast.success("初期データに戻しました");
-        }}
-      >
-        <RotateCcw className="size-4" aria-hidden />
-        初期データに戻す
-      </Button>
     </div>
   );
 }

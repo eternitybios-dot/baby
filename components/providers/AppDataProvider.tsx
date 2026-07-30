@@ -91,7 +91,6 @@ interface AppDataContextValue {
   addHabit: (input: Omit<Habit, "id">) => void;
   updateHabit: (id: string, patch: Partial<Habit>) => void;
   deleteHabit: (id: string) => void;
-  resetDemoData: () => void;
 }
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
@@ -445,9 +444,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ...prev,
           habits: prev.habits.filter((h) => h.id !== id),
         }));
-      },
-      resetDemoData: () => {
-        commit(createSeedState());
       },
     };
   }, [

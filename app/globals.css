@@ -129,7 +129,8 @@
   }
 
   .app-max-width {
-    max-width: 28rem; /* ~448px: スマホ縦画面を優先しつつタブレットでも中央寄せ */
+    max-width: 30rem; /* 480px: PCでは中央寄せ */
     margin-inline: auto;
+    width: 100%;
   }
 }

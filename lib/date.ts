@@ -1,5 +1,6 @@
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { differenceInCalendarMonths, differenceInDays } from "date-fns";
+import { ja } from "date-fns/locale";
 import { APP_TIMEZONE } from "@/lib/constants";
 
 /** 現在時刻を Asia/Tokyo の Date として扱う */
@@ -7,12 +8,12 @@ export function nowInAppTimezone(date: Date = new Date()): Date {
   return toZonedTime(date, APP_TIMEZONE);
 }
 
-/** JST 基準の日付文字列 (yyyy-MM-dd) */
+/** JST 基準の日付文字列 */
 export function formatAppDate(
   date: Date,
   pattern = "yyyy-MM-dd",
 ): string {
-  return formatInTimeZone(date, APP_TIMEZONE, pattern);
+  return formatInTimeZone(date, APP_TIMEZONE, pattern, { locale: ja });
 }
 
 /** 生年月日から月齢表示（例: 3か月12日）を生成 */

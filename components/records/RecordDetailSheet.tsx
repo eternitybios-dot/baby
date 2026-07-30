@@ -20,16 +20,10 @@ interface RecordDetailSheetProps {
 }
 
 export function RecordDetailSheet({ record, onClose }: RecordDetailSheetProps) {
-  const { deleteCareRecord, quickSave, status } = useAppData();
+  const { deleteCareRecord } = useAppData();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (!record) return null;
-
-  const canEndSleep =
-    record.recordType === "sleep" &&
-    record.detail.type === "sleep" &&
-    record.detail.sleep.endedAt == null &&
-    status.isSleeping;
 
   return (
     <Drawer
@@ -59,21 +53,6 @@ export function RecordDetailSheet({ record, onClose }: RecordDetailSheetProps) {
           </div>
 
           <div className="flex flex-col gap-2">
-            {canEndSleep ? (
-              <Button
-                type="button"
-                className="tap-target h-11"
-                aria-label="睡眠を終了"
-                onClick={() => {
-                  quickSave("sleep");
-                  toast.success("睡眠を終了しました");
-                  onClose();
-                }}
-              >
-                睡眠を終了する
-              </Button>
-            ) : null}
-
             {!confirmDelete ? (
               <Button
                 type="button"

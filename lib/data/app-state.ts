@@ -60,28 +60,7 @@ export function createSeedState(now = new Date()): AppState {
       members: MOCK_FAMILY.members.map((m) => ({ ...m, avatarUrl: null })),
     },
     currentUserId: MOCK_PROFILES.mama.id,
-    records: [
-      {
-        id: "rec-sleep-open",
-        familyId: "family-1",
-        babyId: "baby-suzu",
-        userId: MOCK_PROFILES.mama.id,
-        recordType: "sleep" as const,
-        recordedAt: shiftIsoToToday("2026-07-30T14:22:00+09:00", now),
-        startedAt: shiftIsoToToday("2026-07-30T14:22:00+09:00", now),
-        endedAt: null,
-        note: null,
-        detail: {
-          type: "sleep" as const,
-          sleep: {
-            startedAt: shiftIsoToToday("2026-07-30T14:22:00+09:00", now),
-            endedAt: null,
-            durationMinutes: null,
-          },
-        },
-        recorder: { ...MOCK_PROFILES.mama, avatarUrl: null },
-      },
-      ...MOCK_TIMELINE.map((r) => {
+    records: MOCK_TIMELINE.map((r) => {
       const recordedAt = shiftIsoToToday(r.recordedAt, now);
       const startedAt = r.startedAt ? shiftIsoToToday(r.startedAt, now) : null;
       const endedAt = r.endedAt ? shiftIsoToToday(r.endedAt, now) : null;
@@ -107,7 +86,6 @@ export function createSeedState(now = new Date()): AppState {
         recorder: { ...r.recorder, avatarUrl: null },
       };
     }),
-    ],
     growth: [...MOCK_GROWTH],
     concerns: MOCK_CONCERNS.map((c) => ({
       ...c,

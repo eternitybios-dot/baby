@@ -55,7 +55,7 @@ const ACTIONS: Array<{
   {
     key: "sleep",
     label: "睡眠",
-    description: "開始 / 終了を切替",
+    description: "睡眠時間を入力",
     icon: Moon,
     tone: "bg-secondary/50",
   },
@@ -93,7 +93,7 @@ export function QuickRecordSheet({
   onOpenChange,
   initialAction = null,
 }: QuickRecordSheetProps) {
-  const { quickSave, status, currentUser } = useAppData();
+  const { quickSave, currentUser } = useAppData();
   const [selected, setSelected] = useState<QuickRecordAction | null>(
     initialAction,
   );
@@ -101,6 +101,8 @@ export function QuickRecordSheet({
   const [amountMl, setAmountMl] = useState("120");
   const [leftMinutes, setLeftMinutes] = useState("8");
   const [rightMinutes, setRightMinutes] = useState("6");
+  const [sleepHours, setSleepHours] = useState("1");
+  const [sleepMinutes, setSleepMinutes] = useState("30");
   const [diaperKind, setDiaperKind] = useState<DiaperKind>("urine");
   const [celsius, setCelsius] = useState("36.5");
   const [concernTitle, setConcernTitle] = useState("");
@@ -113,9 +115,15 @@ export function QuickRecordSheet({
     setSaving(true);
     try {
       if (selected === "sleep") {
-        const wasSleeping = status.isSleeping;
-        quickSave("sleep");
-        toast.success(wasSleeping ? "睡眠を終了しました" : "睡眠を開始しました");
+        const totalMinutes =
+          (Number(sleepHours) || 0) * 60 + (Number(sleepMinutes) || 0);
+        if (totalMinutes <= 0) {
+          toast.error("睡眠時間を入力してください");
+          setSaving(false);
+          return;
+        }
+        quickSave("sleep", { sleepMinutes: totalMinutes });
+        toast.success("睡眠を記録しました");
       } else if (selected === "formula") {
         quickSave("formula", { amountMl: Number(amountMl) || 120 });
         toast.success("ミルクを記録しました");
@@ -282,11 +290,26 @@ export function QuickRecordSheet({
           ) : null}
 
           {selected === "sleep" ? (
-            <p className="rounded-xl bg-secondary/30 px-3 py-2 text-sm text-secondary-foreground">
-              {status.isSleeping
-                ? "いま睡眠中です。保存すると終了します。"
-                : "保存すると睡眠を開始します。"}
-            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="時間">
+                <Input
+                  inputMode="numeric"
+                  value={sleepHours}
+                  onChange={(e) => setSleepHours(e.target.value)}
+                  className="h-11"
+                  aria-label="睡眠時間（時間）"
+                />
+              </Field>
+              <Field label="分">
+                <Input
+                  inputMode="numeric"
+                  value={sleepMinutes}
+                  onChange={(e) => setSleepMinutes(e.target.value)}
+                  className="h-11"
+                  aria-label="睡眠時間（分）"
+                />
+              </Field>
+            </div>
           ) : null}
 
           {selected ? (

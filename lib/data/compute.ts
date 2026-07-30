@@ -28,23 +28,27 @@ export function computeHomeStatus(
   const diaper = records
     .filter((r) => r.recordType === "diaper")
     .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))[0];
-  const openSleep = records
-    .filter(
-      (r) =>
-        r.recordType === "sleep" &&
-        r.detail.type === "sleep" &&
-        r.detail.sleep.endedAt == null,
-    )
+  const sleep = records
+    .filter((r) => r.recordType === "sleep" && r.detail.type === "sleep")
     .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))[0];
+
+  const lastSleepMinutes =
+    sleep?.detail.type === "sleep"
+      ? sleep.detail.sleep.durationMinutes ??
+        (sleep.detail.sleep.endedAt
+          ? Math.round(
+              (new Date(sleep.detail.sleep.endedAt).getTime() -
+                new Date(sleep.detail.sleep.startedAt).getTime()) /
+                60000,
+            )
+          : null)
+      : null;
 
   return {
     lastFormulaAt: formula?.recordedAt ?? now.toISOString(),
     lastDiaperAt: diaper?.recordedAt ?? now.toISOString(),
-    isSleeping: Boolean(openSleep),
-    sleepStartedAt:
-      openSleep?.detail.type === "sleep"
-        ? openSleep.detail.sleep.startedAt
-        : null,
+    lastSleepAt: sleep?.recordedAt ?? null,
+    lastSleepMinutes,
   };
 }
 

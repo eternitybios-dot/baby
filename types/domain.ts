@@ -47,8 +47,8 @@ export interface Baby {
 export interface HomeStatus {
   lastFormulaAt: string; // ISO
   lastDiaperAt: string;
-  isSleeping: boolean;
-  sleepStartedAt: string | null;
+  lastSleepAt: string | null;
+  lastSleepMinutes: number | null;
 }
 
 export interface TodaySummaryData {

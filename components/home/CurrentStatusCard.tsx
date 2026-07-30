@@ -1,6 +1,6 @@
 import { Baby, Clock3, Droplets, Moon } from "lucide-react";
 import type { HomeStatus } from "@/types/domain";
-import { formatElapsed } from "@/lib/format";
+import { formatDurationMinutes, formatElapsed } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface CurrentStatusCardProps {
@@ -14,10 +14,6 @@ export function CurrentStatusCard({
   now,
   className,
 }: CurrentStatusCardProps) {
-  const sleepElapsed = status.sleepStartedAt
-    ? formatElapsed(status.sleepStartedAt, now)
-    : null;
-
   const items = [
     {
       key: "formula",
@@ -34,17 +30,22 @@ export function CurrentStatusCard({
       tone: "bg-secondary/40 text-secondary-foreground",
     },
     {
-      key: "sleep-state",
+      key: "sleep-when",
       icon: Moon,
-      label: "現在",
-      value: status.isSleeping ? "睡眠中" : "起きている",
+      label: "最後の睡眠",
+      value: status.lastSleepAt
+        ? formatElapsed(status.lastSleepAt, now)
+        : "まだなし",
       tone: "bg-accent/60 text-accent-foreground",
     },
     {
-      key: "sleep-elapsed",
+      key: "sleep-duration",
       icon: Clock3,
-      label: "睡眠経過",
-      value: status.isSleeping && sleepElapsed ? sleepElapsed.replace("前", "") : "—",
+      label: "前回の睡眠時間",
+      value:
+        status.lastSleepMinutes != null && status.lastSleepMinutes > 0
+          ? formatDurationMinutes(status.lastSleepMinutes)
+          : "—",
       tone: "bg-muted text-foreground",
     },
   ] as const;

@@ -58,6 +58,8 @@ export interface QuickPayload {
   celsius?: number;
   concernTitle?: string;
   concernBody?: string;
+  /** 睡眠時間（分） */
+  sleepMinutes?: number;
 }
 
 interface AppDataContextValue {
@@ -220,62 +222,27 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const nowIso = toJstIso();
 
         if (action === "sleep") {
-          const open = memoryState.records.find(
-            (r) =>
-              r.recordType === "sleep" &&
-              r.detail.type === "sleep" &&
-              r.detail.sleep.endedAt == null,
-          );
-          if (open && open.detail.type === "sleep") {
-            const endedAt = nowIso;
-            const startedAt = open.detail.sleep.startedAt;
-            const durationMinutes = Math.max(
-              1,
-              Math.round(
-                (new Date(endedAt).getTime() - new Date(startedAt).getTime()) /
-                  60000,
-              ),
-            );
-            patchState((prev) => ({
-              ...prev,
-              records: prev.records.map((r) =>
-                r.id === open.id
-                  ? {
-                      ...r,
-                      endedAt,
-                      detail: {
-                        type: "sleep" as const,
-                        sleep: { startedAt, endedAt, durationMinutes },
-                      },
-                    }
-                  : r,
-              ),
-            }));
-            return {
-              ...open,
-              endedAt,
-              detail: {
-                type: "sleep",
-                sleep: { startedAt, endedAt, durationMinutes },
-              },
-            };
-          }
+          const durationMinutes = Math.max(1, Math.round(payload.sleepMinutes ?? 60));
+          const endedAt = nowIso;
+          const startedAt = new Date(
+            new Date(endedAt).getTime() - durationMinutes * 60_000,
+          ).toISOString();
           const record: CareRecord = {
             id: createId("rec"),
             familyId: memoryState.baby.familyId,
             babyId: memoryState.baby.id,
             userId: recorder.id,
             recordType: "sleep",
-            recordedAt: nowIso,
-            startedAt: nowIso,
-            endedAt: null,
+            recordedAt: endedAt,
+            startedAt,
+            endedAt,
             note: null,
             detail: {
               type: "sleep",
               sleep: {
-                startedAt: nowIso,
-                endedAt: null,
-                durationMinutes: null,
+                startedAt,
+                endedAt,
+                durationMinutes,
               },
             },
             recorder,

@@ -153,6 +153,7 @@ export interface ChartBundle {
 }
 
 export interface FamilySettings {
+  familyId?: string;
   familyName: string;
   inviteCode: string;
   members: Array<Profile & { role: FamilyRole }>;

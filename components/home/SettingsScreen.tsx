@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   Baby,
   ChevronRight,
+  Copy,
   HeartHandshake,
   LineChart,
   Sparkles,
@@ -16,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppData } from "@/components/providers/AppDataProvider";
 import { APP_NAME } from "@/lib/constants";
-import { cn } from "@/lib/utils";
 
 const LINKS = [
   {
@@ -50,13 +50,27 @@ export function SettingsScreen() {
     baby,
     state,
     currentUser,
-    setCurrentUser,
+    syncing,
     updateBaby,
+    updateDisplayName,
   } = useAppData();
   const [name, setName] = useState(baby.name);
   const [nickname, setNickname] = useState(baby.nickname ?? "");
   const [birthDate, setBirthDate] = useState(baby.birthDate);
   const [memo, setMemo] = useState(baby.memo ?? "");
+  const [displayNameDraft, setDisplayNameDraft] = useState<string | null>(null);
+  const displayName = displayNameDraft ?? currentUser.displayName;
+
+  // サーバー同期で赤ちゃんが差し替わったときだけフォームを揃える
+  const babyFormKey = `${baby.id}:${baby.name}:${baby.birthDate}`;
+  const [formKey, setFormKey] = useState(babyFormKey);
+  if (formKey !== babyFormKey) {
+    setFormKey(babyFormKey);
+    setName(baby.name);
+    setNickname(baby.nickname ?? "");
+    setBirthDate(baby.birthDate);
+    setMemo(baby.memo ?? "");
+  }
 
   return (
     <div className="space-y-5">
@@ -68,36 +82,72 @@ export function SettingsScreen() {
       <section className="rounded-2xl bg-card p-4 shadow-soft">
         <div className="mb-3 flex items-center gap-2 text-muted-foreground">
           <Users className="size-4" aria-hidden />
-          <h2 className="text-sm font-medium">いまの記録者</h2>
+          <h2 className="text-sm font-medium">家族の共有</h2>
         </div>
-        <div className="flex gap-2">
-          {state.family.members.map((member) => {
-            const selected = member.id === currentUser.id;
-            return (
-              <button
-                key={member.id}
-                type="button"
-                className={cn(
-                  "tap-target h-11 flex-1 rounded-xl border text-sm font-medium",
-                  selected
-                    ? "border-primary bg-primary/30 text-primary-foreground"
-                    : "border-border bg-background",
-                )}
-                aria-label={`${member.displayName}として記録`}
-                aria-pressed={selected}
-                onClick={() => {
-                  setCurrentUser(member.id);
-                  toast.success(`${member.displayName}に切り替えました`);
-                }}
-              >
-                {member.displayName}
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          家族: {state.family.familyName}（認証なし・この端末に保存）
+        <p className="text-sm font-semibold">{state.family.familyName}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          相手の端末でも同じ招待コードで参加すると、記録がサーバー経由で共有されます。
         </p>
+        <div className="mt-3 flex items-center gap-2">
+          <div className="flex-1 rounded-xl border border-border bg-background px-3 py-2">
+            <p className="text-[11px] text-muted-foreground">招待コード</p>
+            <p className="font-mono text-lg tracking-[0.25em]">
+              {state.family.inviteCode || "------"}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="tap-target h-11 shrink-0"
+            aria-label="招待コードをコピー"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(state.family.inviteCode);
+                toast.success("招待コードをコピーしました");
+              } catch {
+                toast.error("コピーできませんでした");
+              }
+            }}
+          >
+            <Copy className="size-4" />
+          </Button>
+        </div>
+        <ul className="mt-3 space-y-1 text-sm">
+          {state.family.members.map((member) => (
+            <li key={member.id} className="flex items-center justify-between">
+              <span>{member.displayName}</span>
+              <span className="text-xs text-muted-foreground">
+                {member.id === currentUser.id
+                  ? "この端末"
+                  : member.role === "owner"
+                    ? "作成者"
+                    : "メンバー"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="space-y-3 rounded-2xl bg-card p-4 shadow-soft">
+        <h2 className="text-sm font-medium text-muted-foreground">あなたの表示名</h2>
+        <Input
+          className="h-11"
+          value={displayName}
+          onChange={(e) => setDisplayNameDraft(e.target.value)}
+          aria-label="表示名"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          className="tap-target h-11 w-full"
+          disabled={syncing}
+          onClick={async () => {
+            await updateDisplayName(displayName);
+            setDisplayNameDraft(null);
+          }}
+        >
+          表示名を保存
+        </Button>
       </section>
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-soft">
@@ -146,6 +196,7 @@ export function SettingsScreen() {
           type="button"
           className="tap-target h-11 w-full"
           aria-label="赤ちゃん情報を保存"
+          disabled={syncing}
           onClick={() => {
             if (!name.trim() || !birthDate) {
               toast.error("名前と生年月日は必須です");

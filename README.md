@@ -2,52 +2,55 @@
 
 夫婦で使える、モバイル向け赤ちゃん育児記録 Web アプリです。
 
-## できること（完成版・認証なし）
+## できること
 
 - 授乳（母乳 / ミルク）、睡眠、おむつ、体温、困り事のクイック記録
 - ホームの状況・今日のサマリー・タイムライン
 - 記録の詳細表示・削除（確認あり）
 - 成長 / 困り事 / 習慣の追加・更新・削除
 - グラフ（睡眠・授乳・ミルク・おむつ・体重）を実データから集計
-- 記録者の切替（ママ / パパ）
-- 赤ちゃん情報の編集
+- **サーバー保存**（Supabase）で夫婦の端末間共有・ほぼリアルタイム同期
+- 招待コードで家族参加（メール登録なし）
 
-データはこの端末の **localStorage** に保存されます（ログイン不要）。
+## 夫婦で共有するには（重要）
 
-## GitHub Pages で公開（おすすめ・速い）
+データは端末内ではなく **Supabase サーバー** に保存します。
 
-静的サイトとして GitHub Pages に出せます。`gh-pages` ブランチへ成果物は既に push 済みです。
+詳しい手順: [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md)
 
-### あなたがやること（初回だけ）
+ざっくり:
 
-1. GitHub リポジトリを開く: https://github.com/eternitybios-dot/baby
-2. **Settings → Pages**
-3. Source を **Deploy from a branch**
-4. Branch を **`gh-pages` / `/ (root)`** にして Save
+1. Supabase プロジェクト作成
+2. Anonymous 認証を ON
+3. `supabase/migrations/001_init.sql` を SQL Editor で実行
+4. アプリで Project URL と anon key を入力
+5. 片方で家族作成 → 招待コードをもう片方で参加
 
-公開 URL（有効化後）:
+公開 URL:
 
 https://eternitybios-dot.github.io/baby/home/
 
-※ PR をマージしなくても、`gh-pages` ブランチだけで公開できます。
+## GitHub Pages
 
-自動デプロイ用 Actions: `.github/workflows/deploy-pages.yml`  
-（Pages の Source を GitHub Actions にすると、main への push で再デプロイされます）
+`gh-pages` ブランチ、または Actions（`.github/workflows/deploy-pages.yml`）でデプロイできます。
 
-## 動かしかた（ローカル）
+任意で Secrets:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+## ローカル
 
 ```bash
 npm install
+cp .env.example .env.local   # URL / anon key を記入
 npm run dev
 ```
-
-静的ビルド:
 
 ```bash
 npm run build          # 通常
 npm run build:pages    # GitHub Pages 用（basePath=/baby）
 ```
-
 
 ## 主な画面
 
@@ -56,27 +59,12 @@ npm run build:pages    # GitHub Pages 用（basePath=/baby）
 | `/home` | ホーム・クイック入力・タイムライン |
 | `/calendar` | カレンダー |
 | `/charts` | グラフ |
-| `/settings` | 記録者切替・赤ちゃん情報・各機能への導線 |
+| `/settings` | 招待コード・表示名・赤ちゃん情報 |
 | `/growth` `/concerns` `/habits` `/records` | 各詳細 |
-
-中央の **記録** ボタン、またはホームのクイック入力から保存できます。
 
 ## データ方針
 
-- UI は `useAppData()`（`components/providers/AppDataProvider.tsx`）経由
-- 永続化は `lib/data/app-state.ts` の localStorage
-- 認証・プロフィール画像・Supabase 連携は **対象外**（今回の完成版）
-
-## スクリプト
-
-```bash
-npm run dev
-npm run build
-npm run start
-npm run lint
-npm run typecheck
-```
-
-## 補足
-
-- 端末を変えるとデータは共有されません（端末内保存のため）
+- UI は `useAppData()` 経由
+- 永続化は Supabase（匿名認証 + RLS）
+- Realtime で家族内の変更を同期
+- プロフィール画像・メールログイン UI は対象外

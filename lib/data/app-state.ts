@@ -43,6 +43,34 @@ function shiftIsoToToday(iso: string, now = new Date()): string {
   return new Date(`${today}T${time}+09:00`).toISOString();
 }
 
+export function createEmptyState(): AppState {
+  return {
+    version: 2,
+    baby: {
+      id: "",
+      familyId: "",
+      name: "",
+      nickname: null,
+      birthDate: "2024-01-01",
+      sex: "unspecified",
+      avatarUrl: null,
+      birthWeightG: null,
+      birthHeightCm: null,
+      memo: null,
+    },
+    family: {
+      familyName: "",
+      inviteCode: "",
+      members: [],
+    },
+    currentUserId: "",
+    records: [],
+    growth: [],
+    concerns: [],
+    habits: [],
+  };
+}
+
 export function createSeedState(now = new Date()): AppState {
   const birth = new Date(now);
   birth.setMonth(birth.getMonth() - 3);
@@ -105,8 +133,16 @@ export function getProfiles(state: AppState): Profile[] {
 }
 
 export function getCurrentProfile(state: AppState): Profile {
-  const found = getProfiles(state).find((p) => p.id === state.currentUserId);
-  return found ?? getProfiles(state)[0];
+  const profiles = getProfiles(state);
+  const found = profiles.find((p) => p.id === state.currentUserId);
+  return (
+    found ??
+    profiles[0] ?? {
+      id: state.currentUserId || "unknown",
+      displayName: "メンバー",
+      avatarUrl: null,
+    }
+  );
 }
 
 export function loadAppState(): AppState {
@@ -137,8 +173,11 @@ export function saveAppState(state: AppState): void {
   window.localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(state));
 }
 
-export function createId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+export function createId(_prefix?: string): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${_prefix ?? "id"}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function toJstIso(date: Date = new Date()): string {

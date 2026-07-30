@@ -15,6 +15,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const basePath = process.env.GITHUB_PAGES === "true" ? "/baby" : "";
+
 export const metadata: Metadata = {
   title: {
     default: APP_NAME,
@@ -22,12 +24,47 @@ export const metadata: Metadata = {
   },
   description: APP_DESCRIPTION,
   applicationName: APP_NAME,
+  manifest: `${basePath}/manifest.webmanifest`,
+  appleWebApp: {
+    capable: true,
+    title: APP_NAME,
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      {
+        url: `${basePath}/icon-192.png`,
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        url: `${basePath}/icon-512.png`,
+        sizes: "512x512",
+        type: "image/png",
+      },
+    ],
+    apple: [
+      {
+        url: `${basePath}/apple-touch-icon.png`,
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
+  },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: "cover",
   themeColor: "#f7f3ee",
 };
 
@@ -41,7 +78,15 @@ export default function RootLayout({
       lang="ja"
       className={`${zenMaruGothic.variable} ${geistMono.variable} h-full`}
     >
-      <body className="min-h-full flex flex-col overflow-x-hidden">
+      <head>
+        {/* iOS のホーム画面起動で Safari 枠を消すために明示 */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content={APP_NAME} />
+        <link rel="apple-touch-icon" href={`${basePath}/apple-touch-icon.png`} />
+        <link rel="manifest" href={`${basePath}/manifest.webmanifest`} />
+      </head>
+      <body className="min-h-full flex flex-col overflow-x-hidden overscroll-none">
         {children}
       </body>
     </html>

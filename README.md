@@ -14,14 +14,40 @@
 
 データはこの端末の **localStorage** に保存されます（ログイン不要）。
 
-## 動かしかた
+## GitHub Pages で公開（おすすめ・速い）
+
+静的サイトとして GitHub Pages に出せます。`gh-pages` ブランチへ成果物は既に push 済みです。
+
+### あなたがやること（初回だけ）
+
+1. GitHub リポジトリを開く: https://github.com/eternitybios-dot/baby
+2. **Settings → Pages**
+3. Source を **Deploy from a branch**
+4. Branch を **`gh-pages` / `/ (root)`** にして Save
+
+公開 URL（有効化後）:
+
+https://eternitybios-dot.github.io/baby/home/
+
+※ PR をマージしなくても、`gh-pages` ブランチだけで公開できます。
+
+自動デプロイ用 Actions: `.github/workflows/deploy-pages.yml`  
+（Pages の Source を GitHub Actions にすると、main への push で再デプロイされます）
+
+## 動かしかた（ローカル）
 
 ```bash
 npm install
 npm run dev
 ```
 
-ブラウザで http://localhost:3000 を開きます（`/home` へ移動します）。
+静的ビルド:
+
+```bash
+npm run build          # 通常
+npm run build:pages    # GitHub Pages 用（basePath=/baby）
+```
+
 
 ## 主な画面
 

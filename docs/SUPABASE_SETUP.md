@@ -14,13 +14,24 @@
 
 **Authentication → Providers → Anonymous** を **Enable**
 
-## 3. SQL を実行
+## 3. SQL を実行（ここが一番わかりにくい）
 
-**SQL Editor** でリポジトリの次のファイルを全文実行:
+やることは **「SQLの文章をコピーして、Supabaseに貼って実行」** だけです。
 
-`supabase/migrations/001_init.sql`
+### 手順（PC推奨）
 
-成功すると家族・記録テーブルと RLS、Realtime が入ります。
+1. まず SQL 全文を開く（下のリンク）  
+   → [001_init.sql（生テキスト）](https://raw.githubusercontent.com/eternitybios-dot/baby/cursor/sukusuku-log-foundation-814d/supabase/migrations/001_init.sql)
+2. 画面の文字を **全部選択**（`Ctrl+A` / Macは `Cmd+A`）して **コピー**
+3. [Supabase Dashboard](https://supabase.com/dashboard) を開き、自分のプロジェクトに入る
+4. 左メニューの **SQL Editor** をタップ／クリック
+5. **New query**（新しいクエリ）を押す
+6. 白い入力欄に **貼り付け**（`Ctrl+V` / `Cmd+V`）
+7. 右下（または右上）の **Run**（実行）を押す
+
+成功すると下に `Success` と出ます。これでテーブル作成は完了です。
+
+スマホの場合も同じですが、文字が多くてコピーしづらいので **PCの方が楽** です。
 
 ## 4. アプリ側の接続
 

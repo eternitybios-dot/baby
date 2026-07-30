@@ -9,6 +9,7 @@ import {
 import { Toaster } from "sonner";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { FamilyGate } from "@/components/family/FamilyGate";
+import { ConcernNotificationWatcher } from "@/components/notifications/ConcernNotificationWatcher";
 import { QuickRecordSheet } from "@/components/records/QuickRecordSheet";
 import { RecordDetailSheet } from "@/components/records/RecordDetailSheet";
 import {
@@ -62,6 +63,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
   return (
     <QuickRecordContext.Provider value={openSheet}>
       <RecordDetailContext.Provider value={setDetailRecord}>
+        <ConcernNotificationWatcher />
         <div className="min-h-dvh bg-background">
           <div className="app-max-width relative min-h-dvh bg-background">
             <div

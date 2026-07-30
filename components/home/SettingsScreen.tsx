@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   Baby,
+  Bell,
   ChevronRight,
   Copy,
   HeartHandshake,
@@ -17,6 +18,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppData } from "@/components/providers/AppDataProvider";
 import { APP_NAME } from "@/lib/constants";
+import {
+  disableNotifications,
+  enableNotifications,
+  getNotificationPermission,
+  getNotificationPref,
+  isNotificationSupported,
+} from "@/lib/notifications";
+import { cn } from "@/lib/utils";
 
 const LINKS = [
   {
@@ -60,6 +69,9 @@ export function SettingsScreen() {
   const [memo, setMemo] = useState(baby.memo ?? "");
   const [displayNameDraft, setDisplayNameDraft] = useState<string | null>(null);
   const displayName = displayNameDraft ?? currentUser.displayName;
+  const [notifyOn, setNotifyOn] = useState(() => getNotificationPref());
+  const notifySupported = isNotificationSupported();
+  const notifyPermission = getNotificationPermission();
 
   // サーバー同期で赤ちゃんが差し替わったときだけフォームを揃える
   const babyFormKey = `${baby.id}:${baby.name}:${baby.birthDate}`;
@@ -78,6 +90,62 @@ export function SettingsScreen() {
         <h1 className="text-xl font-bold">設定</h1>
         <p className="text-sm text-muted-foreground">{APP_NAME}</p>
       </header>
+
+      <section className="rounded-2xl bg-card p-4 shadow-soft">
+        <div className="mb-3 flex items-center gap-2 text-muted-foreground">
+          <Bell className="size-4" aria-hidden />
+          <h2 className="text-sm font-medium">困り事の通知</h2>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          相手が困り事を追加したとき、画面上の通知と（許可すれば）端末の通知を出します。
+        </p>
+        {!notifySupported ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            このブラウザは通知に対応していません。
+          </p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            <button
+              type="button"
+              className={cn(
+                "tap-target flex h-11 w-full items-center justify-center rounded-xl border text-sm font-medium",
+                notifyOn && notifyPermission === "granted"
+                  ? "border-primary bg-primary/30"
+                  : "border-border bg-background",
+              )}
+              aria-pressed={notifyOn && notifyPermission === "granted"}
+              onClick={async () => {
+                if (notifyOn && notifyPermission === "granted") {
+                  disableNotifications();
+                  setNotifyOn(false);
+                  toast.message("通知をオフにしました");
+                  return;
+                }
+                const ok = await enableNotifications();
+                setNotifyOn(ok);
+                if (ok) {
+                  toast.success("通知をオンにしました");
+                } else if (notifyPermission === "denied" || getNotificationPermission() === "denied") {
+                  toast.error(
+                    "通知がブロックされています。ブラウザのサイト設定から許可してください",
+                  );
+                } else {
+                  toast.error("通知を許可できませんでした");
+                }
+              }}
+            >
+              {notifyOn && notifyPermission === "granted"
+                ? "通知オン（タップでオフ）"
+                : "通知をオンにする"}
+            </button>
+            {notifyPermission === "denied" ? (
+              <p className="text-xs text-destructive">
+                ブラウザで通知が拒否されています。設定アプリ／サイト設定から変更してください。
+              </p>
+            ) : null}
+          </div>
+        )}
+      </section>
 
       <section className="rounded-2xl bg-card p-4 shadow-soft">
         <div className="mb-3 flex items-center gap-2 text-muted-foreground">

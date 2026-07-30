@@ -136,7 +136,6 @@ function commit(next: AppState) {
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const ready = typeof window !== "undefined";
-  const now = new Date();
 
   const patchState = useCallback((updater: (prev: AppState) => AppState) => {
     commit(updater(memoryState));
@@ -144,19 +143,20 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const currentUser = getCurrentProfile(state);
   const status = useMemo(
-    () => computeHomeStatus(state.records, now),
-    [state.records, now],
+    () => computeHomeStatus(state.records, new Date()),
+    [state.records],
   );
   const summary = useMemo(
-    () => computeTodaySummary(state.records, now),
-    [state.records, now],
+    () => computeTodaySummary(state.records, new Date()),
+    [state.records],
   );
   const timeline = useMemo(
-    () => getTodayTimeline(state.records, now),
-    [state.records, now],
+    () => getTodayTimeline(state.records, new Date()),
+    [state.records],
   );
 
   const value = useMemo<AppDataContextValue>(() => {
+    const now = new Date();
     return {
       ready,
       now,
@@ -452,7 +452,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
   }, [
     ready,
-    now,
     state,
     currentUser,
     status,

@@ -51,6 +51,7 @@ import {
   type SupabaseConfig,
 } from "@/lib/supabase/config";
 import { getSupabaseClient, resetSupabaseClient } from "@/lib/supabase/client";
+import { markLocalCreated } from "@/lib/notifications";
 import type {
   Baby,
   CareRecord,
@@ -388,6 +389,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           detail: input.detail,
           recorder,
         };
+        markLocalCreated(record.id);
         applyState({
           ...stateRef.current,
           records: [record, ...stateRef.current.records],
@@ -446,6 +448,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
               sleep: { startedAt, endedAt, durationMinutes },
             },
           };
+          markLocalCreated(record.id);
           applyState({
             ...stateRef.current,
             records: [record, ...stateRef.current.records],
@@ -469,6 +472,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             occurredAt: nowIso,
             recorder,
           };
+          markLocalCreated(concern.id);
           applyState({
             ...stateRef.current,
             concerns: [concern, ...stateRef.current.concerns],
@@ -554,6 +558,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         };
 
         const record = builders[action]();
+        markLocalCreated(record.id);
         applyState({
           ...stateRef.current,
           records: [record, ...stateRef.current.records],
@@ -565,6 +570,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       },
       addGrowth: (input) => {
         const id = createId();
+        markLocalCreated(id);
         applyState({
           ...stateRef.current,
           growth: [...stateRef.current.growth, { ...input, id }].sort((a, b) =>
@@ -597,6 +603,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       addConcern: (input) => {
         const recorder = currentUser;
         const id = createId();
+        markLocalCreated(id);
         applyState({
           ...stateRef.current,
           concerns: [{ ...input, id, recorder }, ...stateRef.current.concerns],
@@ -640,6 +647,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       },
       addHabit: (input) => {
         const id = createId();
+        markLocalCreated(id);
         applyState({
           ...stateRef.current,
           habits: [{ ...input, id }, ...stateRef.current.habits],

@@ -94,10 +94,10 @@ export function SettingsScreen() {
       <section className="rounded-2xl bg-card p-4 shadow-soft">
         <div className="mb-3 flex items-center gap-2 text-muted-foreground">
           <Bell className="size-4" aria-hidden />
-          <h2 className="text-sm font-medium">困り事の通知</h2>
+          <h2 className="text-sm font-medium">入力の通知</h2>
         </div>
         <p className="text-xs text-muted-foreground">
-          相手が困り事を追加したとき、画面上の通知と（許可すれば）端末の通知を出します。
+          相手が授乳・睡眠・おむつ・困り事・成長・習慣などを入力したとき、画面上の通知と（許可すれば）端末の通知を出します。
         </p>
         {!notifySupported ? (
           <p className="mt-3 text-sm text-muted-foreground">

@@ -33,6 +33,10 @@
 
 スマホの場合も同じですが、文字が多くてコピーしづらいので **PCの方が楽** です。
 
+すでに 001 を実行済みで、削除時に RLS エラーが出る場合は追加でこちらも実行してください。
+
+→ [002_fix_delete_rls.sql（生テキスト）](https://raw.githubusercontent.com/eternitybios-dot/baby/cursor/sukusuku-log-foundation-814d/supabase/migrations/002_fix_delete_rls.sql)
+
 ## 4. アプリ側の接続
 
 どちらか一方で OK です。

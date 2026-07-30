@@ -416,11 +416,18 @@ export async function insertCareRecordRemote(
   supabase: SupabaseClient,
   record: CareRecord,
 ): Promise<void> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!user?.id) throw new Error("ログイン状態を確認できません");
+
   const { error } = await supabase.from("care_records").insert({
     id: record.id,
     family_id: record.familyId,
     baby_id: record.babyId,
-    user_id: record.userId,
+    user_id: user.id,
     record_type: record.recordType,
     recorded_at: record.recordedAt,
     started_at: record.startedAt,
@@ -454,10 +461,8 @@ export async function softDeleteCareRecord(
   supabase: SupabaseClient,
   id: string,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("care_records")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
+  // ハードデリート（soft delete の UPDATE は RLS WITH CHECK で失敗しやすい）
+  const { error } = await supabase.from("care_records").delete().eq("id", id);
   if (error) throw error;
 }
 
@@ -475,11 +480,18 @@ export async function insertGrowthRemote(
     note: string | null;
   },
 ): Promise<void> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!user?.id) throw new Error("ログイン状態を確認できません");
+
   const { error } = await supabase.from("growth_records").insert({
     id: input.id,
     family_id: input.familyId,
     baby_id: input.babyId,
-    user_id: input.userId,
+    user_id: user.id,
     measured_at: input.measuredAt,
     weight_g: input.weightG,
     height_cm: input.heightCm,
@@ -493,10 +505,7 @@ export async function softDeleteGrowth(
   supabase: SupabaseClient,
   id: string,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("growth_records")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
+  const { error } = await supabase.from("growth_records").delete().eq("id", id);
   if (error) throw error;
 }
 
@@ -517,11 +526,18 @@ export async function insertConcernRemote(
     occurredAt: string;
   },
 ): Promise<void> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!user?.id) throw new Error("ログイン状態を確認できません");
+
   const { error } = await supabase.from("concerns").insert({
     id: input.id,
     family_id: input.familyId,
     baby_id: input.babyId,
-    user_id: input.userId,
+    user_id: user.id,
     title: input.title,
     category: input.category,
     body: input.body,
@@ -559,10 +575,7 @@ export async function softDeleteConcern(
   supabase: SupabaseClient,
   id: string,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("concerns")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
+  const { error } = await supabase.from("concerns").delete().eq("id", id);
   if (error) throw error;
 }
 
@@ -583,11 +596,18 @@ export async function insertHabitRemote(
     status: HabitStatus;
   },
 ): Promise<void> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!user?.id) throw new Error("ログイン状態を確認できません");
+
   const { error } = await supabase.from("habits").insert({
     id: input.id,
     family_id: input.familyId,
     baby_id: input.babyId,
-    user_id: input.userId,
+    user_id: user.id,
     name: input.name,
     category: input.category,
     body: input.body,
@@ -631,10 +651,7 @@ export async function softDeleteHabit(
   supabase: SupabaseClient,
   id: string,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("habits")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
+  const { error } = await supabase.from("habits").delete().eq("id", id);
   if (error) throw error;
 }
 

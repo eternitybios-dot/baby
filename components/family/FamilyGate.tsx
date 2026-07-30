@@ -9,7 +9,10 @@ import { useAppData } from "@/components/providers/AppDataProvider";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { APP_NAME } from "@/lib/constants";
-import { getEnvSupabaseConfig } from "@/lib/supabase/config";
+import {
+  getEnvSupabaseConfig,
+  loadStoredSupabaseConfig,
+} from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 
 const DISPLAY_OPTIONS = ["ママ", "パパ"] as const;
@@ -20,12 +23,13 @@ export function FamilyGate() {
     bootError,
     syncing,
     saveSupabaseConfig,
+    openConfig,
     createFamily,
     joinFamily,
     refresh,
   } = useAppData();
 
-  const envConfig = getEnvSupabaseConfig();
+  const initialConfig = loadStoredSupabaseConfig() ?? getEnvSupabaseConfig();
   const [mode, setMode] = useState<"create" | "join">("create");
   const [displayName, setDisplayName] = useState<string>("ママ");
   const [customName, setCustomName] = useState("");
@@ -33,8 +37,8 @@ export function FamilyGate() {
   const [babyName, setBabyName] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [inviteCode, setInviteCode] = useState("");
-  const [supabaseUrl, setSupabaseUrl] = useState(envConfig?.url ?? "");
-  const [anonKey, setAnonKey] = useState(envConfig?.anonKey ?? "");
+  const [supabaseUrl, setSupabaseUrl] = useState(initialConfig?.url ?? "");
+  const [anonKey, setAnonKey] = useState(initialConfig?.anonKey ?? "");
   const [busy, setBusy] = useState(false);
 
   if (bootPhase === "loading") {
@@ -47,12 +51,32 @@ export function FamilyGate() {
 
   if (bootPhase === "error") {
     return (
-      <div className="flex min-h-dvh items-center justify-center px-4">
+      <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-4 py-8">
         <ErrorState
           title="接続に失敗しました"
           message={bootError ?? "設定を確認してください"}
           onRetry={() => void refresh()}
+          action={
+            <Button
+              type="button"
+              className="tap-target min-h-11 w-full max-w-xs"
+              onClick={() => {
+                const stored =
+                  loadStoredSupabaseConfig() ?? getEnvSupabaseConfig();
+                if (stored) {
+                  setSupabaseUrl(stored.url);
+                  setAnonKey(stored.anonKey);
+                }
+                openConfig();
+              }}
+            >
+              設定をやり直す
+            </Button>
+          }
         />
+        <p className="text-center text-xs text-muted-foreground">
+          URL や anon key の打ち間違い、Anonymous 認証が OFF のことが多いです。
+        </p>
       </div>
     );
   }

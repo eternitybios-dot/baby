@@ -132,6 +132,7 @@ interface AppDataContextValue {
   updateHabit: (id: string, patch: Partial<Habit>) => void;
   deleteHabit: (id: string) => void;
   saveSupabaseConfig: (config: SupabaseConfig) => Promise<void>;
+  openConfig: () => void;
   createFamily: (input: {
     familyName: string;
     displayName: string;
@@ -148,11 +149,23 @@ interface AppDataContextValue {
 const AppDataContext = createContext<AppDataContextValue | null>(null);
 
 function withErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "object" && error && "message" in error) {
-    return String((error as { message: unknown }).message);
+  let message = "不明なエラーが発生しました";
+  if (error instanceof Error) message = error.message;
+  else if (typeof error === "object" && error && "message" in error) {
+    message = String((error as { message: unknown }).message);
   }
-  return "不明なエラーが発生しました";
+
+  const lower = message.toLowerCase();
+  if (lower.includes("anonymous") || lower.includes("signups not allowed")) {
+    return "匿名ログインが無効です。Supabase の Authentication → Providers → Anonymous を ON にしてください。";
+  }
+  if (lower.includes("failed to fetch") || lower.includes("network")) {
+    return "サーバーに届きません。Project URL が正しいか、ネット接続を確認してください。";
+  }
+  if (lower.includes("invalid api key") || lower.includes("jwt")) {
+    return "anon key が正しくないようです。Supabase の Project Settings → API からコピーし直してください。";
+  }
+  return message;
 }
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
@@ -672,6 +685,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         saveStoredSupabaseConfig(config);
         await bootstrap(config);
       },
+      openConfig: () => {
+        resetSupabaseClient();
+        supabaseRef.current = null;
+        userIdRef.current = "";
+        familyIdRef.current = "";
+        setBootError(null);
+        setBootPhase("needs_config");
+      },
       createFamily: async (input) => {
         const supabase = supabaseRef.current;
         if (!supabase) throw new Error("サーバー未接続です");
@@ -697,7 +718,22 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         }
       },
       refresh: async () => {
-        await reloadBundle();
+        const config = resolveSupabaseConfig();
+        if (!config) {
+          setBootPhase("needs_config");
+          return;
+        }
+        if (bootPhase === "error" || !supabaseRef.current || !userIdRef.current) {
+          await bootstrap(config);
+          return;
+        }
+        try {
+          setBootPhase("loading");
+          await reloadBundle();
+        } catch (error) {
+          setBootError(withErrorMessage(error));
+          setBootPhase("error");
+        }
       },
     };
   }, [

@@ -51,7 +51,16 @@ import {
   type SupabaseConfig,
 } from "@/lib/supabase/config";
 import { getSupabaseClient, resetSupabaseClient } from "@/lib/supabase/client";
-import { markLocalCreated } from "@/lib/notifications";
+import {
+  appPath,
+  enableNotifications,
+  ensureServiceWorker,
+  getNotificationPref,
+  markLocalCreated,
+  notifyFamilyPush,
+  savePushSubscription,
+} from "@/lib/notifications";
+import { timelinePrimaryText } from "@/lib/format";
 import type {
   Baby,
   CareRecord,
@@ -145,6 +154,7 @@ interface AppDataContextValue {
     displayName: string;
   }) => Promise<void>;
   refresh: () => Promise<void>;
+  enableDeviceNotifications: () => Promise<boolean>;
 }
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
@@ -267,6 +277,35 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const id = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(id);
   }, []);
+
+  // iOS PWA: Service Worker を早めに登録し、通知ONなら Push 購読を保存
+  useEffect(() => {
+    if (bootPhase !== "ready") return;
+    void ensureServiceWorker();
+    if (!getNotificationPref()) return;
+    const supabase = supabaseRef.current;
+    const familyId = familyIdRef.current || state.baby.familyId;
+    const userId = userIdRef.current;
+    if (!supabase || !familyId || !userId) return;
+    void savePushSubscription(supabase, familyId, userId);
+  }, [bootPhase, state.baby.familyId]);
+
+  const pushToFamily = useCallback(
+    (title: string, body: string, path: string) => {
+      const supabase = supabaseRef.current;
+      const familyId = familyIdRef.current || stateRef.current.baby.familyId;
+      const userId = userIdRef.current;
+      if (!supabase || !familyId || !userId) return;
+      void notifyFamilyPush(supabase, {
+        familyId,
+        title,
+        body,
+        url: appPath(path),
+        excludeUserId: userId,
+      });
+    },
+    [],
+  );
 
   const runRemote = useCallback(async (task: () => Promise<void>) => {
     const supabase = supabaseRef.current;
@@ -396,6 +435,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         });
         void runRemote(async () => {
           await insertCareRecordRemote(supabaseRef.current!, record);
+          pushToFamily(
+            timelinePrimaryText(record),
+            `${record.recorder.displayName}が記録しました`,
+            "/home",
+          );
         });
         return record;
       },
@@ -455,6 +499,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           });
           void runRemote(async () => {
             await insertCareRecordRemote(supabaseRef.current!, record);
+            pushToFamily(
+              timelinePrimaryText(record),
+              `${record.recorder.displayName}が記録しました`,
+              "/home",
+            );
           });
           return record;
         }
@@ -492,6 +541,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
               status: concern.status,
               occurredAt: concern.occurredAt,
             });
+            pushToFamily(
+              `困り事: ${concern.title}`,
+              `${concern.recorder.displayName}が追加しました`,
+              "/concerns",
+            );
           });
           return null;
         }
@@ -565,6 +619,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         });
         void runRemote(async () => {
           await insertCareRecordRemote(supabaseRef.current!, record);
+          pushToFamily(
+            timelinePrimaryText(record),
+            `${record.recorder.displayName}が記録しました`,
+            "/home",
+          );
         });
         return record;
       },
@@ -589,6 +648,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             headCircumferenceCm: input.headCircumferenceCm,
             note: input.note,
           });
+          const parts = [
+            input.weightG != null ? `体重 ${(input.weightG / 1000).toFixed(2)}kg` : null,
+            input.heightCm != null ? `身長 ${input.heightCm}cm` : null,
+          ].filter(Boolean);
+          pushToFamily("成長記録", parts.join("・") || "新しい計測", "/growth");
         });
       },
       deleteGrowth: (id) => {
@@ -623,6 +687,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             status: input.status,
             occurredAt: input.occurredAt,
           });
+          pushToFamily(
+            `困り事: ${input.title}`,
+            `${recorder.displayName}が追加しました`,
+            "/concerns",
+          );
         });
       },
       updateConcern: (id, concernPatch) => {
@@ -667,6 +736,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             lastConfirmedAt: input.lastConfirmedAt,
             status: input.status,
           });
+          pushToFamily(`習慣: ${input.name}`, input.body || "新しい習慣", "/habits");
         });
       },
       updateHabit: (id, habitPatch) => {
@@ -743,6 +813,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           setBootPhase("error");
         }
       },
+      enableDeviceNotifications: async () => {
+        const supabase = supabaseRef.current;
+        const familyId = familyIdRef.current || stateRef.current.baby.familyId;
+        const userId = userIdRef.current;
+        return enableNotifications({
+          supabase,
+          familyId,
+          userId,
+        });
+      },
     };
   }, [
     bootPhase,
@@ -758,6 +838,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     runRemote,
     bootstrap,
     reloadBundle,
+    pushToFamily,
   ]);
 
   return (

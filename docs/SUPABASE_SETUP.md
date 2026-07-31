@@ -37,6 +37,12 @@
 
 → [002_fix_delete_rls.sql（生テキスト）](https://raw.githubusercontent.com/eternitybios-dot/baby/cursor/sukusuku-log-foundation-814d/supabase/migrations/002_fix_delete_rls.sql)
 
+iPhone の通知（ホーム画面アプリ）を使う場合は追加で:
+
+→ [003_push_subscriptions.sql（生テキスト）](https://raw.githubusercontent.com/eternitybios-dot/baby/cursor/sukusuku-log-foundation-814d/supabase/migrations/003_push_subscriptions.sql)
+
+詳しい通知手順: [docs/PUSH_SETUP.md](./PUSH_SETUP.md)
+
 ## 4. アプリ側の接続
 
 どちらか一方で OK です。

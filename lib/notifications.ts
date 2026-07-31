@@ -1,12 +1,15 @@
-/** ブラウザ通知ヘルパー */
+/** iOS ホーム画面アプリ対応の通知ヘルパー */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CareRecord, Concern, GrowthPoint, Habit } from "@/types/domain";
 import { timelinePrimaryText } from "@/lib/format";
+import { VAPID_PUBLIC_KEY } from "@/lib/push/vapid-public";
 
 const NOTIFY_PREF_KEY = "sukusuku-notify-enabled";
 const localCreatedIds = new Set<string>();
 
-/** 自分の端末で作った ID（相手通知の誤発火防止） */
+let swReady: Promise<ServiceWorkerRegistration | null> | null = null;
+
 export function markLocalCreated(id: string): void {
   localCreatedIds.add(id);
   if (typeof window === "undefined") return;
@@ -17,12 +20,29 @@ export function wasLocalCreated(id: string): boolean {
   return localCreatedIds.has(id);
 }
 
+export function getAppBasePath(): string {
+  if (typeof window === "undefined") return "";
+  return window.location.pathname.startsWith("/baby/") ? "/baby" : "";
+}
+
+export function appPath(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  const withSlash = normalized.endsWith("/") ? normalized : `${normalized}/`;
+  return `${getAppBasePath()}${withSlash}`;
+}
+
 export function isNotificationSupported(): boolean {
-  return typeof window !== "undefined" && "Notification" in window;
+  return (
+    typeof window !== "undefined" &&
+    "Notification" in window &&
+    "serviceWorker" in navigator
+  );
 }
 
 export function getNotificationPermission(): NotificationPermission | "unsupported" {
-  if (!isNotificationSupported()) return "unsupported";
+  if (typeof window === "undefined" || !("Notification" in window)) {
+    return "unsupported";
+  }
   return Notification.permission;
 }
 
@@ -36,17 +56,114 @@ export function setNotificationPref(enabled: boolean): void {
   window.localStorage.setItem(NOTIFY_PREF_KEY, enabled ? "1" : "0");
 }
 
+export async function ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+    return null;
+  }
+  if (!swReady) {
+    swReady = (async () => {
+      try {
+        const base = getAppBasePath();
+        const reg = await navigator.serviceWorker.register(`${base}/sw.js`, {
+          scope: `${base}/`,
+        });
+        await navigator.serviceWorker.ready;
+        return reg;
+      } catch {
+        return null;
+      }
+    })();
+  }
+  return swReady;
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const output = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) output[i] = raw.charCodeAt(i);
+  return output;
+}
+
 export async function ensureNotificationPermission(): Promise<NotificationPermission> {
-  if (!isNotificationSupported()) return "denied";
+  if (typeof window === "undefined" || !("Notification" in window)) return "denied";
+  await ensureServiceWorker();
   if (Notification.permission === "granted") return "granted";
   if (Notification.permission === "denied") return "denied";
   return Notification.requestPermission();
 }
 
-export async function enableNotifications(): Promise<boolean> {
+async function subscribePush(
+  registration: ServiceWorkerRegistration,
+): Promise<PushSubscription | null> {
+  if (!("PushManager" in window)) return null;
+  try {
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) return existing;
+    return await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function savePushSubscription(
+  supabase: SupabaseClient,
+  familyId: string,
+  userId: string,
+): Promise<boolean> {
+  const registration = await ensureServiceWorker();
+  if (!registration) return false;
+  const sub = await subscribePush(registration);
+  if (!sub) return false;
+
+  const json = sub.toJSON();
+  const endpoint = json.endpoint;
+  const p256dh = json.keys?.p256dh;
+  const auth = json.keys?.auth;
+  if (!endpoint || !p256dh || !auth) return false;
+
+  const { error } = await supabase.from("push_subscriptions").upsert(
+    {
+      user_id: userId,
+      family_id: familyId,
+      endpoint,
+      p256dh,
+      auth,
+      user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "endpoint" },
+  );
+  return !error;
+}
+
+export async function enableNotifications(input?: {
+  supabase?: SupabaseClient | null;
+  familyId?: string;
+  userId?: string;
+}): Promise<boolean> {
+  await ensureServiceWorker();
   const permission = await ensureNotificationPermission();
   const ok = permission === "granted";
   setNotificationPref(ok);
+
+  if (ok && input?.supabase && input.familyId && input.userId) {
+    await savePushSubscription(input.supabase, input.familyId, input.userId);
+  }
+
+  if (ok) {
+    // 動作確認用のテスト通知（iOS は SW 経由が必須）
+    await showOsNotification({
+      title: "すくすくログ",
+      body: "通知がオンになりました",
+      tag: "sukusuku-test",
+      href: appPath("/home"),
+    });
+  }
   return ok;
 }
 
@@ -54,24 +171,44 @@ export function disableNotifications(): void {
   setNotificationPref(false);
 }
 
-function appPath(path: string): string {
-  if (typeof window === "undefined") return path;
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  if (window.location.pathname.startsWith("/baby/")) {
-    return `/baby${normalized.endsWith("/") ? normalized : `${normalized}/`}`;
-  }
-  return normalized.endsWith("/") ? normalized : `${normalized}/`;
-}
-
-function showOsNotification(input: {
+export async function showOsNotification(input: {
   title: string;
   body: string;
   tag: string;
   href: string;
-}): void {
-  if (!isNotificationSupported()) return;
+}): Promise<void> {
   if (!getNotificationPref()) return;
+  if (typeof window === "undefined" || !("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
+
+  const registration = await ensureServiceWorker();
+  const href = input.href;
+
+  // iOS PWA は Service Worker の showNotification が必要
+  if (registration) {
+    const worker = registration.active ?? registration.waiting ?? registration.installing;
+    if (worker) {
+      worker.postMessage({
+        type: "SHOW_NOTIFICATION",
+        title: input.title,
+        body: input.body,
+        tag: input.tag,
+        url: href,
+      });
+      return;
+    }
+    try {
+      await registration.showNotification(input.title, {
+        body: input.body,
+        tag: input.tag,
+        data: { url: href },
+        lang: "ja",
+      });
+      return;
+    } catch {
+      /* fall through */
+    }
+  }
 
   try {
     const n = new Notification(input.title, {
@@ -82,16 +219,41 @@ function showOsNotification(input: {
     n.onclick = () => {
       window.focus();
       n.close();
-      window.location.assign(input.href);
+      window.location.assign(href);
     };
   } catch {
-    /* 一部ブラウザでは失敗しうる */
+    /* ignore */
+  }
+}
+
+export async function notifyFamilyPush(
+  supabase: SupabaseClient,
+  input: {
+    familyId: string;
+    title: string;
+    body: string;
+    url: string;
+    excludeUserId: string;
+  },
+): Promise<void> {
+  try {
+    await supabase.functions.invoke("notify-family", {
+      body: {
+        familyId: input.familyId,
+        title: input.title,
+        body: input.body,
+        url: input.url,
+        excludeUserId: input.excludeUserId,
+      },
+    });
+  } catch {
+    /* Edge Function 未デプロイ時は無視（フォアグラウンド通知は動く） */
   }
 }
 
 export function notifyNewCareRecord(record: CareRecord): void {
   const primary = timelinePrimaryText(record);
-  showOsNotification({
+  void showOsNotification({
     title: primary,
     body: `${record.recorder.displayName}が記録しました`,
     tag: `care-${record.id}`,
@@ -100,7 +262,7 @@ export function notifyNewCareRecord(record: CareRecord): void {
 }
 
 export function notifyNewConcern(concern: Concern): void {
-  showOsNotification({
+  void showOsNotification({
     title: `困り事: ${concern.title}`,
     body: [concern.body, `${concern.recorder.displayName}が追加`]
       .filter(Boolean)
@@ -110,17 +272,14 @@ export function notifyNewConcern(concern: Concern): void {
   });
 }
 
-export function notifyNewGrowth(
-  point: GrowthPoint,
-  recorderName: string,
-): void {
+export function notifyNewGrowth(point: GrowthPoint, recorderName: string): void {
   const parts: string[] = [];
   if (point.weightG != null) parts.push(`体重 ${(point.weightG / 1000).toFixed(2)}kg`);
   if (point.heightCm != null) parts.push(`身長 ${point.heightCm}cm`);
   if (point.headCircumferenceCm != null) {
     parts.push(`頭囲 ${point.headCircumferenceCm}cm`);
   }
-  showOsNotification({
+  void showOsNotification({
     title: "成長記録",
     body: [parts.join("・") || "新しい計測", `${recorderName}が追加`]
       .filter(Boolean)
@@ -131,7 +290,7 @@ export function notifyNewGrowth(
 }
 
 export function notifyNewHabit(habit: Habit, recorderName: string): void {
-  showOsNotification({
+  void showOsNotification({
     title: `習慣: ${habit.name}`,
     body: [habit.body, `${recorderName}が追加`].filter(Boolean).join(" ／ "),
     tag: `habit-${habit.id}`,

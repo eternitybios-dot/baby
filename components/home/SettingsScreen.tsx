@@ -20,7 +20,6 @@ import { useAppData } from "@/components/providers/AppDataProvider";
 import { APP_NAME } from "@/lib/constants";
 import {
   disableNotifications,
-  enableNotifications,
   getNotificationPermission,
   getNotificationPref,
   isNotificationSupported,
@@ -62,6 +61,7 @@ export function SettingsScreen() {
     syncing,
     updateBaby,
     updateDisplayName,
+    enableDeviceNotifications,
   } = useAppData();
   const [name, setName] = useState(baby.name);
   const [nickname, setNickname] = useState(baby.nickname ?? "");
@@ -97,11 +97,16 @@ export function SettingsScreen() {
           <h2 className="text-sm font-medium">入力の通知</h2>
         </div>
         <p className="text-xs text-muted-foreground">
-          相手が授乳・睡眠・おむつ・困り事・成長・習慣などを入力したとき、画面上の通知と（許可すれば）端末の通知を出します。
+          相手が授乳・睡眠・おむつ・困り事などを入力したとき、端末に通知します。
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          iPhone では Safari のタブではなく、
+          <span className="font-medium text-foreground">ホーム画面に追加したアプリ</span>
+          から開いた状態で、下のボタンを押してください（iOS 16.4以降）。
         </p>
         {!notifySupported ? (
           <p className="mt-3 text-sm text-muted-foreground">
-            このブラウザは通知に対応していません。
+            このブラウザは通知に対応していません。ホーム画面アプリから開いてください。
           </p>
         ) : (
           <div className="mt-3 space-y-2">
@@ -115,32 +120,34 @@ export function SettingsScreen() {
               )}
               aria-pressed={notifyOn && notifyPermission === "granted"}
               onClick={async () => {
-                if (notifyOn && notifyPermission === "granted") {
+                if (notifyOn && getNotificationPermission() === "granted") {
                   disableNotifications();
                   setNotifyOn(false);
                   toast.message("通知をオフにしました");
                   return;
                 }
-                const ok = await enableNotifications();
+                const ok = await enableDeviceNotifications();
                 setNotifyOn(ok);
                 if (ok) {
-                  toast.success("通知をオンにしました");
-                } else if (notifyPermission === "denied" || getNotificationPermission() === "denied") {
+                  toast.success("通知オン。テスト通知も送りました");
+                } else if (getNotificationPermission() === "denied") {
                   toast.error(
-                    "通知がブロックされています。ブラウザのサイト設定から許可してください",
+                    "通知がブロックされています。iPhoneの設定 → 通知 から許可してください",
                   );
                 } else {
-                  toast.error("通知を許可できませんでした");
+                  toast.error(
+                    "通知を許可できませんでした。ホーム画面アプリから開き直して再試行してください",
+                  );
                 }
               }}
             >
               {notifyOn && notifyPermission === "granted"
                 ? "通知オン（タップでオフ）"
-                : "通知をオンにする"}
+                : "通知をオンにする（テスト通知あり）"}
             </button>
             {notifyPermission === "denied" ? (
               <p className="text-xs text-destructive">
-                ブラウザで通知が拒否されています。設定アプリ／サイト設定から変更してください。
+                通知が拒否されています。iPhoneの「設定」→「通知」→「すくすくログ」で許可してください。
               </p>
             ) : null}
           </div>

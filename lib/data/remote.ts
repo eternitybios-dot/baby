@@ -204,6 +204,7 @@ export async function fetchFamilyBundle(
       .eq("family_id", familyId)
       .is("deleted_at", null)
       .order("recorded_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(HOME_CARE_RECORDS_LIMIT),
     supabase
       .from("growth_records")
@@ -739,7 +740,8 @@ export async function fetchCareRecordsInRange(
     .is("deleted_at", null)
     .gte("recorded_at", input.fromIso)
     .lt("recorded_at", input.toIso)
-    .order("recorded_at", { ascending: false });
+    .order("recorded_at", { ascending: false })
+    .order("id", { ascending: false });
 
   if (error) throw error;
   return mapCareRows((data ?? []) as DbCare[], input.profileById);

@@ -18,19 +18,26 @@ function isFeeding(record: CareRecord): boolean {
   );
 }
 
+/** recorded_at DESC, id DESC（ページング境界の同時刻欠落を防ぐ） */
+export function compareCareRecordsDesc(a: CareRecord, b: CareRecord): number {
+  const byTime = b.recordedAt.localeCompare(a.recordedAt);
+  if (byTime !== 0) return byTime;
+  return b.id.localeCompare(a.id);
+}
+
 export function computeHomeStatus(
   records: CareRecord[],
   now: Date,
 ): HomeStatus {
   const formula = records
     .filter((r) => r.recordType === "formula" || r.detail.type === "formula")
-    .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))[0];
+    .sort(compareCareRecordsDesc)[0];
   const diaper = records
     .filter((r) => r.recordType === "diaper")
-    .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))[0];
+    .sort(compareCareRecordsDesc)[0];
   const sleep = records
     .filter((r) => r.recordType === "sleep" && r.detail.type === "sleep")
-    .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))[0];
+    .sort(compareCareRecordsDesc)[0];
 
   const lastSleepMinutes =
     sleep?.detail.type === "sleep"
@@ -101,7 +108,7 @@ export function getTodayTimeline(
       const t = new Date(r.recordedAt).getTime();
       return t >= dayStart && t < dayEnd;
     })
-    .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+    .sort(compareCareRecordsDesc);
 }
 
 export function chartPeriodDays(period: ChartPeriod): number {

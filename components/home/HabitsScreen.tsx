@@ -61,59 +61,71 @@ export function HabitsScreen() {
         </p>
       </header>
 
-      <section className="space-y-3 rounded-2xl bg-card p-4 shadow-soft">
+      <section className="space-y-4 rounded-2xl bg-card p-4 shadow-soft">
         <p className="text-sm font-medium">新しい習慣</p>
-        <div className="space-y-1">
-          <Label htmlFor="habitName">習慣名</Label>
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor="habitName" className="leading-normal">
+            習慣名
+          </Label>
           <Input
             id="habitName"
-            className="h-11"
+            className="box-border h-11 min-h-11"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="habitCategory">カテゴリー</Label>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-5">
+          <div className="flex min-w-0 flex-col gap-2">
+            <Label htmlFor="habitCategory" className="leading-normal">
+              カテゴリー
+            </Label>
             <Input
               id="habitCategory"
-              className="h-11"
+              className="box-border h-11 min-h-11"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="habitFrequency">頻度</Label>
+          <div className="flex min-w-0 flex-col gap-2">
+            <Label htmlFor="habitFrequency" className="leading-normal">
+              頻度
+            </Label>
             <Input
               id="habitFrequency"
-              className="h-11"
+              className="box-border h-11 min-h-11"
               value={frequency}
               onChange={(e) => setFrequency(e.target.value)}
             />
           </div>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="habitTime">出やすい時間帯</Label>
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor="habitTime" className="leading-normal">
+            出やすい時間帯
+          </Label>
           <Input
             id="habitTime"
-            className="h-11"
+            className="box-border h-11 min-h-11"
             value={likelyTimeOfDay}
             onChange={(e) => setLikelyTimeOfDay(e.target.value)}
           />
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="habitBody">内容</Label>
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor="habitBody" className="leading-normal">
+            内容
+          </Label>
           <Textarea
             id="habitBody"
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="habitResponse">有効だった対応</Label>
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor="habitResponse" className="leading-normal">
+            有効だった対応
+          </Label>
           <Input
             id="habitResponse"
-            className="h-11"
+            className="box-border h-11 min-h-11"
             value={effectiveResponse}
             onChange={(e) => setEffectiveResponse(e.target.value)}
           />

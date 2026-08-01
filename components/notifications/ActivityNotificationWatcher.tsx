@@ -17,8 +17,10 @@ import {
  * 相手が追加した入力内容を検知してトースト / OS 通知を出す
  */
 export function ActivityNotificationWatcher() {
-  const { ready, records, concerns, growth, habits, currentUser } = useAppData();
+  const { ready, records, concerns, growth, habits, currentUser, baby } =
+    useAppData();
   const knownRef = useRef<{
+    familyId: string;
     records: Set<string>;
     concerns: Set<string>;
     growth: Set<string>;
@@ -28,7 +30,9 @@ export function ActivityNotificationWatcher() {
   useEffect(() => {
     if (!ready) return;
 
+    const familyId = baby.familyId;
     const next = {
+      familyId,
       records: new Set(records.map((r) => r.id)),
       concerns: new Set(concerns.map((c) => c.id)),
       growth: new Set(growth.map((g) => g.id)),
@@ -36,7 +40,8 @@ export function ActivityNotificationWatcher() {
     };
     const known = knownRef.current;
 
-    if (known === null) {
+    // 家族切替時は既知 ID をリセット（誤通知防止）
+    if (known === null || known.familyId !== familyId) {
       knownRef.current = next;
       return;
     }
@@ -90,7 +95,7 @@ export function ActivityNotificationWatcher() {
     }
 
     knownRef.current = next;
-  }, [ready, records, concerns, growth, habits, currentUser.id]);
+  }, [ready, records, concerns, growth, habits, currentUser.id, baby.familyId]);
 
   return null;
 }

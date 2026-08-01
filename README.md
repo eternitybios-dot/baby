@@ -34,20 +34,26 @@ https://eternitybios-dot.github.io/baby/home/
 
 `gh-pages` ブランチ、または Actions（`.github/workflows/deploy-pages.yml`）でデプロイできます。
 
-任意で Secrets:
+任意で Secrets（公開値のみ）:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+
+通知・セキュリティ: [docs/PUSH_SETUP.md](docs/PUSH_SETUP.md) / [docs/MANUAL_VERIFICATION.md](docs/MANUAL_VERIFICATION.md)
 
 ## ローカル
 
 ```bash
 npm install
-cp .env.example .env.local   # URL / anon key を記入
+cp .env.example .env.local   # URL / anon key / VAPID 公開鍵を記入
 npm run dev
 ```
 
 ```bash
+npm run lint
+npm run typecheck
+npm test
 npm run build          # 通常
 npm run build:pages    # GitHub Pages 用（basePath=/baby）
 ```

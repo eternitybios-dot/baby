@@ -1,9 +1,14 @@
-# iPhone 通知が届かないとき
+# iPhone 通知セットアップ
 
-## 結論（妻側）
+## 状態は2つあります
 
-**以前ホーム画面に追加済みでも、一度消して入れ直すのが確実**です。  
-Service Worker（通知の土台）が古い状態のまま残ることがあります。
+| 状態 | 意味 |
+|------|------|
+| 端末の通知許可 | iOS がこのアプリに通知表示を許可した |
+| 相手への Push 設定済み | Push 購読が Supabase に保存され、相手の入力を受け取れる |
+
+設定画面で **「通知オン」** と出るのは、**両方できているときだけ**です。
+「端末通知は許可されましたが、相手からの通知設定は未完了です」と出た場合は、SQL / VAPID / ホーム画面起動を確認してください。
 
 ## 夫婦どちらもやること
 
@@ -11,20 +16,56 @@ Service Worker（通知の土台）が古い状態のまま残ることがあり
 2. Safari で https://eternitybios-dot.github.io/baby/home/ を開く
 3. 共有 → **ホーム画面に追加**
 4. **そのアイコンから**開く（Safariのタブではない）
-5. 設定 → **通知をオン** → 許可  
+5. 設定 → **通知をオン** → 許可
    - 「通知がオンになりました」のテスト通知が来るか確認
 6. もう一方の端末でも同じ
 
 ## あなた（セットアップ担当）だけ
 
-SQL をまだなら実行（これを忘れると相手に届きません）:
+### SQL（main ブランチ）
 
-https://raw.githubusercontent.com/eternitybios-dot/baby/cursor/sukusuku-log-foundation-814d/supabase/migrations/003_push_subscriptions.sql
+1. [003_push_subscriptions.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/003_push_subscriptions.sql)
+2. [004_security_hardening.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/004_security_hardening.sql)
+
+### 鍵の置き場所（混同しないこと）
+
+| 値 | 置き場所 | 備考 |
+|----|----------|------|
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | **GitHub Secrets**（Pages / CI ビルド用） | 公開鍵のみ。フロントに埋め込まれる |
+| `VAPID_PUBLIC_KEY` | **Supabase Secrets**（Edge Function）と **GitHub Secrets**（deploy-notify-family 用） | 公開鍵 |
+| `VAPID_PRIVATE_KEY` | **Supabase Secrets** と **GitHub Secrets**（deploy 用のみ） | **秘密鍵。ブラウザ・NEXT_PUBLIC_ 禁止** |
+| `VAPID_SUBJECT` | 同上 | 例: `mailto:you@example.com` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase / サーバーのみ | **ブラウザに絶対入力しない** |
+| `SUPABASE_ACCESS_TOKEN` | GitHub Secrets（Management API 用） | 個人用トークン。ログに出さない |
+
+### VAPID 鍵の生成（ローカルで）
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+出力された **Public Key** と **Private Key** を、上表の場所へ登録してください。
+**リポジトリや Issue に貼らないでください。**
+
+### ローテーション（必須対応）
+
+過去のコミットに VAPID 秘密鍵が含まれていた可能性があります。
+
+1. 新しい VAPID 鍵ペアを生成する
+2. Supabase Secrets の `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` を更新
+3. GitHub Secrets の `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` / `NEXT_PUBLIC_VAPID_PUBLIC_KEY` を更新
+4. Edge Function を再デプロイ（`deploy-notify-family` workflow または `npm run deploy:notify-family`）
+5. Pages を再デプロイ（新しい公開鍵を埋め込む）
+6. 両方の端末で通知をオフ→オンし直す（古い購読を作り直す）
+7. （推奨）Git 履歴からの秘密情報削除は、GitHub の公式手順に従い別途実施
+
+**古い公開鍵と新しい秘密鍵を混ぜて使わないでください。**
 
 ## 確認ポイント
 
 | 症状 | 見方 |
 |------|------|
 | テスト通知も来ない | ホーム画面から開いていない / 通知許可オフ / 入れ直し不足 |
-| テストは来るが相手の入力が来ない | 相手が通知オフ / SQL 003 未実行 / 相手も入れ直しが必要 |
+| 「相手からの通知設定は未完了」 | SQL 003/004 未実行 / 公開鍵未設定 / Push 購読保存失敗 |
+| テストは来るが相手の入力が来ない | 相手が通知オフ / Edge Function 未デプロイ / VAPID 不一致 |
 | Safari タブでは来るがアイコンだと… | 必ずホーム画面アイコンから開く |

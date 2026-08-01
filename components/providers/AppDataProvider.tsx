@@ -21,6 +21,7 @@ import {
 } from "@/lib/data/app-state";
 import {
   chartPeriodRange,
+  compareCareRecordsDesc,
   computeCharts,
   computeHomeStatus,
   computeTodaySummary,
@@ -59,10 +60,12 @@ import {
 import { getSupabaseClient, resetSupabaseClient } from "@/lib/supabase/client";
 import {
   appPath,
+  disableNotifications,
   enableNotifications,
   ensureServiceWorker,
   getNotificationPermission,
   getNotificationPref,
+  getPushRegisteredPref,
   markLocalCreated,
   notifyFamilyPush,
   savePushSubscription,
@@ -170,7 +173,12 @@ interface AppDataContextValue {
     displayName: string;
   }) => Promise<void>;
   refresh: () => Promise<void>;
+  /** 端末許可 + Push 購読保存済み（Settings 表示用・Context で同期） */
+  notifyReady: boolean;
+  notifyPermissionGranted: boolean;
+  pushRegistered: boolean;
   enableDeviceNotifications: () => Promise<EnableNotificationsResult>;
+  disableDeviceNotifications: () => Promise<void>;
 }
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
@@ -210,7 +218,24 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [recordsList, setRecordsList] = useState<CareRecord[]>([]);
   const [hasMoreRecords, setHasMoreRecords] = useState(false);
   const [loadingMoreRecords, setLoadingMoreRecords] = useState(false);
+  const [notifyEnabledPref, setNotifyEnabledPref] = useState(() =>
+    getNotificationPref(),
+  );
+  const [pushRegistered, setPushRegistered] = useState(() =>
+    getPushRegisteredPref(),
+  );
+  const [notifyPermissionGranted, setNotifyPermissionGranted] = useState(
+    () => getNotificationPermission() === "granted",
+  );
   const startedRef = useRef(false);
+
+  const notifyReady =
+    notifyEnabledPref && pushRegistered && notifyPermissionGranted;
+
+  const applyPushRegistration = useCallback((registered: boolean) => {
+    setPushRegisteredPref(registered);
+    setPushRegistered(registered);
+  }, []);
 
   const supabaseRef = useRef<SupabaseClient | null>(null);
   const userIdRef = useRef<string>("");
@@ -297,9 +322,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setRecordsList((prev) => {
         const byId = new Map(prev.map((r) => [r.id, r]));
         for (const r of bundle.records) byId.set(r.id, r);
-        return [...byId.values()].sort((a, b) =>
-          b.recordedAt.localeCompare(a.recordedAt),
-        );
+        return [...byId.values()].sort(compareCareRecordsDesc);
       });
     }
 
@@ -405,28 +428,34 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     navigator.serviceWorker?.addEventListener("message", onSwMessage);
 
     // 通知許可済みなら起動時に必ず購読を再保存（期限切れ削除後の自動復旧）
-    if (
-      getNotificationPref() &&
-      getNotificationPermission() === "granted"
-    ) {
+    // Settings の表示は async 完了後に Context へ反映（localStorage のみ更新しない）
+    const permissionGranted = getNotificationPermission() === "granted";
+    const prefEnabled = getNotificationPref();
+    const syncNotifyUi = (registered: boolean) => {
+      setNotifyEnabledPref(prefEnabled);
+      setNotifyPermissionGranted(permissionGranted);
+      applyPushRegistration(registered);
+    };
+
+    if (prefEnabled && permissionGranted) {
       const supabase = supabaseRef.current;
       const familyId = familyIdRef.current || state.baby.familyId;
       const userId = userIdRef.current;
       if (supabase && familyId && userId) {
         void savePushSubscription(supabase, familyId, userId).then((result) => {
-          if (!result.ok) {
-            setPushRegisteredPref(false);
-          }
+          syncNotifyUi(result.ok);
         });
+      } else {
+        void Promise.resolve().then(() => syncNotifyUi(false));
       }
-    } else if (!getNotificationPref() || getNotificationPermission() !== "granted") {
-      setPushRegisteredPref(false);
+    } else {
+      void Promise.resolve().then(() => syncNotifyUi(false));
     }
 
     return () => {
       navigator.serviceWorker?.removeEventListener("message", onSwMessage);
     };
-  }, [bootPhase, state.baby.familyId]);
+  }, [bootPhase, state.baby.familyId, applyPushRegistration]);
 
   const pushToFamily = useCallback(
     (title: string, body: string, path: string) => {
@@ -1037,15 +1066,29 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           setBootPhase("error");
         }
       },
+      notifyReady,
+      notifyPermissionGranted,
+      pushRegistered,
       enableDeviceNotifications: async () => {
         const supabase = supabaseRef.current;
         const familyId = familyIdRef.current || stateRef.current.baby.familyId;
         const userId = userIdRef.current;
-        return enableNotifications({
+        const result = await enableNotifications({
           supabase,
           familyId,
           userId,
         });
+        setNotifyEnabledPref(getNotificationPref());
+        setNotifyPermissionGranted(result.permissionGranted);
+        applyPushRegistration(result.pushRegistered);
+        return result;
+      },
+      disableDeviceNotifications: async () => {
+        const supabase = supabaseRef.current;
+        await disableNotifications(supabase);
+        setNotifyEnabledPref(false);
+        applyPushRegistration(false);
+        setNotifyPermissionGranted(getNotificationPermission() === "granted");
       },
     };
   }, [
@@ -1066,6 +1109,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     hasMoreRecords,
     loadingMoreRecords,
     loadMoreRecords,
+    notifyReady,
+    notifyPermissionGranted,
+    pushRegistered,
+    applyPushRegistration,
     applyState,
     runRemote,
     bootstrap,

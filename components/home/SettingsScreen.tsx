@@ -14,15 +14,10 @@ import { Label } from "@/components/ui/label";
 import { useAppData } from "@/components/providers/AppDataProvider";
 import { APP_NAME } from "@/lib/constants";
 import {
-  disableNotifications,
   getNotificationPermission,
-  getPushRegisteredPref,
   isNotificationSupported,
-  isPartnerNotifyReady,
   isPushManagerSupported,
 } from "@/lib/notifications";
-import { getSupabaseClient } from "@/lib/supabase/client";
-import { resolveSupabaseConfig } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 
 export function SettingsScreen() {
@@ -33,7 +28,11 @@ export function SettingsScreen() {
     syncing,
     updateBaby,
     updateDisplayName,
+    notifyReady,
+    notifyPermissionGranted,
+    pushRegistered,
     enableDeviceNotifications,
+    disableDeviceNotifications,
   } = useAppData();
   const [name, setName] = useState(baby.name);
   const [nickname, setNickname] = useState(baby.nickname ?? "");
@@ -41,13 +40,6 @@ export function SettingsScreen() {
   const [memo, setMemo] = useState(baby.memo ?? "");
   const [displayNameDraft, setDisplayNameDraft] = useState<string | null>(null);
   const displayName = displayNameDraft ?? currentUser.displayName;
-  const [notifyReady, setNotifyReady] = useState(() => isPartnerNotifyReady());
-  const [permissionGranted, setPermissionGranted] = useState(
-    () => getNotificationPermission() === "granted",
-  );
-  const [pushRegistered, setPushRegistered] = useState(() =>
-    getPushRegisteredPref(),
-  );
   const notifySupported = isNotificationSupported();
   const pushSupported = isPushManagerSupported();
   const notifyPermission = getNotificationPermission();
@@ -106,18 +98,11 @@ export function SettingsScreen() {
               aria-pressed={notifyReady}
               onClick={async () => {
                 if (notifyReady) {
-                  const config = resolveSupabaseConfig();
-                  const supabase = config ? getSupabaseClient(config) : null;
-                  await disableNotifications(supabase);
-                  setNotifyReady(false);
-                  setPushRegistered(false);
+                  await disableDeviceNotifications();
                   toast.message("通知をオフにしました");
                   return;
                 }
                 const result = await enableDeviceNotifications();
-                setPermissionGranted(result.permissionGranted);
-                setPushRegistered(result.pushRegistered);
-                setNotifyReady(result.ok);
                 if (result.ok) {
                   toast.success(result.detail ?? "通知をオンにしました");
                 } else if (result.permissionGranted && !result.pushRegistered) {
@@ -134,7 +119,7 @@ export function SettingsScreen() {
                 ? "通知オン（タップでオフ）"
                 : "通知をオンにする（テスト通知あり）"}
             </button>
-            {permissionGranted && !pushRegistered ? (
+            {notifyPermissionGranted && !pushRegistered ? (
               <p className="text-xs text-destructive">
                 端末通知は許可されましたが、相手からの通知設定は未完了です。もう一度「通知をオン」を試すか、SQL
                 003 / VAPID 公開鍵の設定を確認してください。

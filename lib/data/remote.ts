@@ -673,14 +673,35 @@ function mapCareRows(
 const CARE_SELECT =
   "id, family_id, baby_id, user_id, record_type, recorded_at, started_at, ended_at, note, detail_json";
 
+/** 記録一覧ページング用の複合カーソル（recorded_at desc, id desc） */
+export type CareRecordCursor = {
+  recordedAt: string;
+  id: string;
+};
+
+/**
+ * PostgREST の or フィルタ用に値をクォートする。
+ * 時刻の `:` / `+` が壊れて同時刻の境界欠落を起こさないようにする。
+ */
+export function quotePostgrestValue(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/** (recorded_at, id) < cursor を降順ページング用 or 式で表現 */
+export function buildCareRecordCursorFilter(cursor: CareRecordCursor): string {
+  const ts = quotePostgrestValue(cursor.recordedAt);
+  const id = quotePostgrestValue(cursor.id);
+  return `recorded_at.lt.${ts},and(recorded_at.eq.${ts},id.lt.${id})`;
+}
+
 export async function fetchCareRecordsPage(
   supabase: SupabaseClient,
   input: {
     familyId: string;
     profileById: Map<string, Profile>;
     limit?: number;
-    /** これより古い recorded_at を取得（ページング用） */
-    beforeRecordedAt?: string | null;
+    /** recorded_at + id の複合カーソル（これより古い側を取得） */
+    cursor?: CareRecordCursor | null;
   },
 ): Promise<CareRecord[]> {
   const limit = input.limit ?? CARE_RECORDS_PAGE_SIZE;
@@ -690,10 +711,11 @@ export async function fetchCareRecordsPage(
     .eq("family_id", input.familyId)
     .is("deleted_at", null)
     .order("recorded_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(limit);
 
-  if (input.beforeRecordedAt) {
-    query = query.lt("recorded_at", input.beforeRecordedAt);
+  if (input.cursor) {
+    query = query.or(buildCareRecordCursorFilter(input.cursor));
   }
 
   const { data, error } = await query;

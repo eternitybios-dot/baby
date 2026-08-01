@@ -61,11 +61,12 @@ import {
   appPath,
   enableNotifications,
   ensureServiceWorker,
+  getNotificationPermission,
   getNotificationPref,
-  getPushRegisteredPref,
   markLocalCreated,
   notifyFamilyPush,
   savePushSubscription,
+  setPushRegisteredPref,
   type EnableNotificationsResult,
 } from "@/lib/notifications";
 import { timelinePrimaryText } from "@/lib/format";
@@ -403,13 +404,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
     navigator.serviceWorker?.addEventListener("message", onSwMessage);
 
-    if (getNotificationPref() && !getPushRegisteredPref()) {
+    // 通知許可済みなら起動時に必ず購読を再保存（期限切れ削除後の自動復旧）
+    if (
+      getNotificationPref() &&
+      getNotificationPermission() === "granted"
+    ) {
       const supabase = supabaseRef.current;
       const familyId = familyIdRef.current || state.baby.familyId;
       const userId = userIdRef.current;
       if (supabase && familyId && userId) {
-        void savePushSubscription(supabase, familyId, userId);
+        void savePushSubscription(supabase, familyId, userId).then((result) => {
+          if (!result.ok) {
+            setPushRegisteredPref(false);
+          }
+        });
       }
+    } else if (!getNotificationPref() || getNotificationPermission() !== "granted") {
+      setPushRegisteredPref(false);
     }
 
     return () => {
@@ -432,7 +443,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       }).then((result) => {
         if (!result.ok) {
           toast.message("記録は保存しました", {
-            description: "相手への通知だけ送れませんでした",
+            description:
+              result.error || "相手への通知だけ送れませんでした",
           });
         }
       });
@@ -446,12 +458,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     if (!supabase || !familyId || loadingMoreRecords || !hasMoreRecords) return;
     setLoadingMoreRecords(true);
     try {
-      const oldest = recordsListRef.current.at(-1)?.recordedAt ?? null;
+      const oldest = recordsListRef.current.at(-1);
       const page = await fetchCareRecordsPage(supabase, {
         familyId,
         profileById: buildProfileMapFromState(stateRef.current),
         limit: CARE_RECORDS_PAGE_SIZE,
-        beforeRecordedAt: oldest,
+        cursor: oldest
+          ? { recordedAt: oldest.recordedAt, id: oldest.id }
+          : null,
       });
       setRecordsList((prev) => {
         const seen = new Set(prev.map((r) => r.id));

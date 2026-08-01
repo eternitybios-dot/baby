@@ -125,4 +125,63 @@ describe("notifyFamilyPush の error 確認", () => {
       expect(result.error).toContain("Edge Function failed");
     }
   });
+
+  it("sent < total（全失敗）を成功扱いしない", async () => {
+    vi.resetModules();
+    const { notifyFamilyPush } = await import("@/lib/notifications");
+    const supabase = {
+      functions: {
+        invoke: vi.fn(async () => ({
+          data: { ok: false, status: "failed", sent: 0, total: 1 },
+          error: null,
+        })),
+      },
+    };
+
+    const result = await notifyFamilyPush(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase as any,
+      {
+        familyId: "fam",
+        title: "t",
+        body: "b",
+        url: "/home/",
+        excludeUserId: "u1",
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe("failed");
+      expect(result.sent).toBe(0);
+      expect(result.total).toBe(1);
+    }
+  });
+
+  it("古い Edge Function が ok:true でも sent < total なら失敗", async () => {
+    vi.resetModules();
+    const { notifyFamilyPush } = await import("@/lib/notifications");
+    const supabase = {
+      functions: {
+        invoke: vi.fn(async () => ({
+          data: { ok: true, sent: 0, total: 1 },
+          error: null,
+        })),
+      },
+    };
+
+    const result = await notifyFamilyPush(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase as any,
+      {
+        familyId: "fam",
+        title: "t",
+        body: "b",
+        url: "/home/",
+        excludeUserId: "u1",
+      },
+    );
+
+    expect(result.ok).toBe(false);
+  });
 });

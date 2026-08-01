@@ -47,16 +47,16 @@ npx web-push generate-vapid-keys
 出力された **Public Key** と **Private Key** を、上表の場所へ登録してください。
 **リポジトリや Issue に貼らないでください。**
 
-### ローテーション（必須対応）
+### ローテーション（本番投入前に必須）
 
-過去のコミットに VAPID 秘密鍵が含まれていた可能性があります。
+過去のコミットに VAPID 秘密鍵が含まれています（ブランチ上の削除だけでは不十分）。
 
-1. 新しい VAPID 鍵ペアを生成する
-2. Supabase Secrets の `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` を更新
-3. GitHub Secrets の `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` / `NEXT_PUBLIC_VAPID_PUBLIC_KEY` を更新
-4. Edge Function を再デプロイ（`deploy-notify-family` workflow または `npm run deploy:notify-family`）
-5. Pages を再デプロイ（新しい公開鍵を埋め込む）
-6. 両方の端末で通知をオフ→オンし直す（古い購読を作り直す）
+1. 新しい VAPID 鍵ペアを生成する（`npx web-push generate-vapid-keys`）
+2. Supabase Secrets の `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` を**新しい鍵だけ**に更新
+3. GitHub Secrets の `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` / `NEXT_PUBLIC_VAPID_PUBLIC_KEY` を同じペアに更新
+4. Edge Function を再デプロイ（Actions `Deploy notify-family` または `npm run deploy:notify-family`）
+5. `main` を Pages デプロイ（新しい `NEXT_PUBLIC_VAPID_PUBLIC_KEY` を埋め込む）
+6. 両方の端末でアプリを開き直す（起動時に購読を再保存）。だめなら通知をオフ→オン
 7. （推奨）Git 履歴からの秘密情報削除は、GitHub の公式手順に従い別途実施
 
 **古い公開鍵と新しい秘密鍵を混ぜて使わないでください。**

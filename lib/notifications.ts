@@ -23,8 +23,14 @@ export type EnableNotificationsResult = {
 };
 
 export type NotifyPushResult =
-  | { ok: true; sent: number; total: number }
-  | { ok: false; error: string };
+  | { ok: true; sent: number; total: number; status: "ok" | "no_recipients" }
+  | {
+      ok: false;
+      error: string;
+      sent?: number;
+      total?: number;
+      status?: "failed" | "partial";
+    };
 
 export function markLocalCreated(id: string): void {
   localCreatedIds.add(id);
@@ -455,15 +461,39 @@ export async function notifyFamilyPush(
       ok?: boolean;
       sent?: number;
       total?: number;
+      status?: string;
       error?: string;
     } | null;
     if (payload?.error) {
       return { ok: false, error: String(payload.error) };
     }
+    const sent = Number(payload?.sent ?? 0);
+    const total = Number(payload?.total ?? 0);
+    const status = payload?.status;
+    // Edge Function が ok:true でも sent < total なら失敗扱い（後方互換）
+    if (payload?.ok === false || (total > 0 && sent < total)) {
+      const kind =
+        status === "partial" || (sent > 0 && sent < total)
+          ? "partial"
+          : "failed";
+      return {
+        ok: false,
+        status: kind,
+        sent,
+        total,
+        error:
+          kind === "partial"
+            ? `相手への通知が一部失敗しました（${sent}/${total}）`
+            : total > 0
+              ? `相手への通知を送れませんでした（0/${total}）`
+              : "相手への通知送信に失敗しました",
+      };
+    }
     return {
       ok: true,
-      sent: Number(payload?.sent ?? 0),
-      total: Number(payload?.total ?? 0),
+      sent,
+      total,
+      status: status === "no_recipients" ? "no_recipients" : "ok",
     };
   } catch (error) {
     return {

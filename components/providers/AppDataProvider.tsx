@@ -20,14 +20,20 @@ import {
   type AppState,
 } from "@/lib/data/app-state";
 import {
+  chartPeriodRange,
   computeCharts,
   computeHomeStatus,
   computeTodaySummary,
   getTodayTimeline,
 } from "@/lib/data/compute";
 import {
+  applyProfileDisplayName,
+  buildProfileMapFromState,
+  CARE_RECORDS_PAGE_SIZE,
   createFamilyWithBaby,
   ensureAnonymousSession,
+  fetchCareRecordsInRange,
+  fetchCareRecordsPage,
   fetchFamilyBundle,
   insertCareRecordRemote,
   insertConcernRemote,
@@ -56,9 +62,11 @@ import {
   enableNotifications,
   ensureServiceWorker,
   getNotificationPref,
+  getPushRegisteredPref,
   markLocalCreated,
   notifyFamilyPush,
   savePushSubscription,
+  type EnableNotificationsResult,
 } from "@/lib/notifications";
 import { timelinePrimaryText } from "@/lib/format";
 import type {
@@ -123,6 +131,13 @@ interface AppDataContextValue {
   concerns: Concern[];
   habits: Habit[];
   getCharts: (period: ChartPeriod) => ChartBundle;
+  chartPeriod: ChartPeriod;
+  setChartPeriod: (period: ChartPeriod) => void;
+  chartsLoading: boolean;
+  recordsList: CareRecord[];
+  hasMoreRecords: boolean;
+  loadingMoreRecords: boolean;
+  loadMoreRecords: () => Promise<void>;
   setCurrentUser: (userId: string) => void;
   updateDisplayName: (displayName: string) => Promise<void>;
   updateBaby: (patch: Partial<Baby>) => void;
@@ -154,7 +169,7 @@ interface AppDataContextValue {
     displayName: string;
   }) => Promise<void>;
   refresh: () => Promise<void>;
-  enableDeviceNotifications: () => Promise<{ ok: boolean; detail?: string }>;
+  enableDeviceNotifications: () => Promise<EnableNotificationsResult>;
 }
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
@@ -188,41 +203,107 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [syncing, setSyncing] = useState(false);
   const [state, setState] = useState<AppState>(() => createEmptyState());
   const [now, setNow] = useState(() => new Date());
+  const [chartPeriod, setChartPeriodState] = useState<ChartPeriod>("7d");
+  const [chartRecords, setChartRecords] = useState<CareRecord[]>([]);
+  const [chartsLoading, setChartsLoading] = useState(false);
+  const [recordsList, setRecordsList] = useState<CareRecord[]>([]);
+  const [hasMoreRecords, setHasMoreRecords] = useState(false);
+  const [loadingMoreRecords, setLoadingMoreRecords] = useState(false);
   const startedRef = useRef(false);
 
   const supabaseRef = useRef<SupabaseClient | null>(null);
   const userIdRef = useRef<string>("");
   const familyIdRef = useRef<string>("");
   const stateRef = useRef(state);
+  const chartPeriodRef = useRef(chartPeriod);
+  const recordsListRef = useRef(recordsList);
 
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    chartPeriodRef.current = chartPeriod;
+  }, [chartPeriod]);
+
+  useEffect(() => {
+    recordsListRef.current = recordsList;
+  }, [recordsList]);
 
   const applyState = useCallback((next: AppState) => {
     setState(next);
     stateRef.current = next;
   }, []);
 
+  const loadChartRecords = useCallback(
+    async (period: ChartPeriod) => {
+      const supabase = supabaseRef.current;
+      const familyId = familyIdRef.current || stateRef.current.baby.familyId;
+      if (!supabase || !familyId) return;
+      setChartsLoading(true);
+      try {
+        const { fromIso, toIso } = chartPeriodRange(period, new Date());
+        const rows = await fetchCareRecordsInRange(supabase, {
+          familyId,
+          profileById: buildProfileMapFromState(stateRef.current),
+          fromIso,
+          toIso,
+        });
+        setChartRecords(rows);
+      } catch {
+        /* ホームの recent でフォールバック */
+        setChartRecords(stateRef.current.records);
+      } finally {
+        setChartsLoading(false);
+      }
+    },
+    [],
+  );
+
   const reloadBundle = useCallback(async () => {
     const supabase = supabaseRef.current;
     const userId = userIdRef.current;
     if (!supabase || !userId) return;
 
+    const previousFamilyId = familyIdRef.current;
     const bundle = await fetchFamilyBundle(supabase, userId);
     if (!bundle || !bundle.baby.id) {
       familyIdRef.current = bundle?.family.familyId ?? "";
       applyState(bundle ?? createEmptyState());
+      setRecordsList([]);
+      setHasMoreRecords(false);
+      setChartRecords([]);
       setBootPhase("needs_family");
       return;
     }
 
-    familyIdRef.current =
+    const nextFamilyId =
       bundle.baby.familyId || bundle.family.familyId || "";
+    familyIdRef.current = nextFamilyId;
     applyState(bundle);
     setBootPhase("ready");
     setBootError(null);
-  }, [applyState]);
+
+    // 家族切替時は一覧・既知状態をリセット
+    if (previousFamilyId && previousFamilyId !== nextFamilyId) {
+      setRecordsList(bundle.records);
+      setHasMoreRecords(bundle.records.length >= CARE_RECORDS_PAGE_SIZE);
+    } else if (recordsListRef.current.length === 0) {
+      setRecordsList(bundle.records);
+      setHasMoreRecords(bundle.records.length >= CARE_RECORDS_PAGE_SIZE);
+    } else {
+      // ホーム recent と一覧の先頭をマージ（新しい記録を反映）
+      setRecordsList((prev) => {
+        const byId = new Map(prev.map((r) => [r.id, r]));
+        for (const r of bundle.records) byId.set(r.id, r);
+        return [...byId.values()].sort((a, b) =>
+          b.recordedAt.localeCompare(a.recordedAt),
+        );
+      });
+    }
+
+    void loadChartRecords(chartPeriodRef.current);
+  }, [applyState, loadChartRecords]);
 
   const bootstrap = useCallback(async (config: SupabaseConfig) => {
     setBootPhase("loading");
@@ -266,12 +347,42 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       }, 250);
     };
 
-    const unsubscribe = subscribeFamilyRealtime(supabase, familyId, schedule);
+    const memberIds = state.family.members.map((m) => m.id);
+    const unsubscribe = subscribeFamilyRealtime(supabase, {
+      familyId,
+      memberIds,
+      onChange: schedule,
+      onProfileUpdate: (userId, displayName) => {
+        applyState(
+          applyProfileDisplayName(stateRef.current, userId, displayName),
+        );
+        setRecordsList((prev) =>
+          prev.map((r) =>
+            r.userId === userId || r.recorder.id === userId
+              ? { ...r, recorder: { ...r.recorder, displayName } }
+              : r,
+          ),
+        );
+        setChartRecords((prev) =>
+          prev.map((r) =>
+            r.userId === userId || r.recorder.id === userId
+              ? { ...r, recorder: { ...r.recorder, displayName } }
+              : r,
+          ),
+        );
+      },
+    });
     return () => {
       if (timer) clearTimeout(timer);
       unsubscribe();
     };
-  }, [bootPhase, state.baby.familyId, reloadBundle]);
+  }, [
+    bootPhase,
+    state.baby.familyId,
+    state.family.members,
+    reloadBundle,
+    applyState,
+  ]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 60_000);
@@ -292,7 +403,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
     navigator.serviceWorker?.addEventListener("message", onSwMessage);
 
-    if (getNotificationPref()) {
+    if (getNotificationPref() && !getPushRegisteredPref()) {
       const supabase = supabaseRef.current;
       const familyId = familyIdRef.current || state.baby.familyId;
       const userId = userIdRef.current;
@@ -318,9 +429,54 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         body,
         url: appPath(path),
         excludeUserId: userId,
+      }).then((result) => {
+        if (!result.ok) {
+          toast.message("記録は保存しました", {
+            description: "相手への通知だけ送れませんでした",
+          });
+        }
       });
     },
     [],
+  );
+
+  const loadMoreRecords = useCallback(async () => {
+    const supabase = supabaseRef.current;
+    const familyId = familyIdRef.current || stateRef.current.baby.familyId;
+    if (!supabase || !familyId || loadingMoreRecords || !hasMoreRecords) return;
+    setLoadingMoreRecords(true);
+    try {
+      const oldest = recordsListRef.current.at(-1)?.recordedAt ?? null;
+      const page = await fetchCareRecordsPage(supabase, {
+        familyId,
+        profileById: buildProfileMapFromState(stateRef.current),
+        limit: CARE_RECORDS_PAGE_SIZE,
+        beforeRecordedAt: oldest,
+      });
+      setRecordsList((prev) => {
+        const seen = new Set(prev.map((r) => r.id));
+        const merged = [...prev];
+        for (const row of page) {
+          if (!seen.has(row.id)) merged.push(row);
+        }
+        return merged;
+      });
+      setHasMoreRecords(page.length >= CARE_RECORDS_PAGE_SIZE);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "記録の追加読み込みに失敗しました",
+      );
+    } finally {
+      setLoadingMoreRecords(false);
+    }
+  }, [hasMoreRecords, loadingMoreRecords]);
+
+  const setChartPeriod = useCallback(
+    (period: ChartPeriod) => {
+      setChartPeriodState(period);
+      void loadChartRecords(period);
+    },
+    [loadChartRecords],
   );
 
   const runRemote = useCallback(async (task: () => Promise<void>) => {
@@ -390,7 +546,19 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       concerns: state.concerns,
       habits: state.habits,
       getCharts: (period) =>
-        computeCharts(state.records, state.growth, period, now),
+        computeCharts(
+          chartRecords.length > 0 ? chartRecords : state.records,
+          state.growth,
+          period,
+          now,
+        ),
+      chartPeriod,
+      setChartPeriod,
+      chartsLoading,
+      recordsList: recordsList.length > 0 ? recordsList : state.records,
+      hasMoreRecords,
+      loadingMoreRecords,
+      loadMoreRecords,
       setCurrentUser: () => {
         toast.message("記録者は端末ごとに固定です。表示名は設定から変更できます。");
       },
@@ -449,6 +617,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ...stateRef.current,
           records: [record, ...stateRef.current.records],
         });
+        setRecordsList((prev) => [record, ...prev.filter((r) => r.id !== record.id)]);
+        setChartRecords((prev) => [record, ...prev.filter((r) => r.id !== record.id)]);
         void runRemote(async () => {
           await insertCareRecordRemote(supabaseRef.current!, record);
           pushToFamily(
@@ -466,6 +636,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             r.id === id ? { ...r, ...recordPatch } : r,
           ),
         });
+        setRecordsList((prev) =>
+          prev.map((r) => (r.id === id ? { ...r, ...recordPatch } : r)),
+        );
+        setChartRecords((prev) =>
+          prev.map((r) => (r.id === id ? { ...r, ...recordPatch } : r)),
+        );
         void runRemote(async () => {
           await updateCareRecordRemote(supabaseRef.current!, id, recordPatch);
         });
@@ -475,6 +651,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ...stateRef.current,
           records: stateRef.current.records.filter((r) => r.id !== id),
         });
+        setRecordsList((prev) => prev.filter((r) => r.id !== id));
+        setChartRecords((prev) => prev.filter((r) => r.id !== id));
         void runRemote(async () => {
           await softDeleteCareRecord(supabaseRef.current!, id);
         });
@@ -513,6 +691,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             ...stateRef.current,
             records: [record, ...stateRef.current.records],
           });
+          setRecordsList((prev) => [
+            record,
+            ...prev.filter((r) => r.id !== record.id),
+          ]);
+          setChartRecords((prev) => [
+            record,
+            ...prev.filter((r) => r.id !== record.id),
+          ]);
           void runRemote(async () => {
             await insertCareRecordRemote(supabaseRef.current!, record);
             pushToFamily(
@@ -633,6 +819,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ...stateRef.current,
           records: [record, ...stateRef.current.records],
         });
+        setRecordsList((prev) => [
+          record,
+          ...prev.filter((r) => r.id !== record.id),
+        ]);
+        setChartRecords((prev) => [
+          record,
+          ...prev.filter((r) => r.id !== record.id),
+        ]);
         void runRemote(async () => {
           await insertCareRecordRemote(supabaseRef.current!, record);
           pushToFamily(
@@ -850,6 +1044,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     status,
     summary,
     timeline,
+    chartRecords,
+    chartPeriod,
+    setChartPeriod,
+    chartsLoading,
+    recordsList,
+    hasMoreRecords,
+    loadingMoreRecords,
+    loadMoreRecords,
     applyState,
     runRemote,
     bootstrap,

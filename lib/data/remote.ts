@@ -15,6 +15,11 @@ import type {
 } from "@/types/domain";
 import { createEmptyState, type AppState } from "@/lib/data/app-state";
 
+/** ホーム用: 今日の集計・直近ステータスに十分な件数 */
+export const HOME_CARE_RECORDS_LIMIT = 120;
+/** 記録一覧の1ページ */
+export const CARE_RECORDS_PAGE_SIZE = 80;
+
 type DbProfile = {
   id: string;
   display_name: string;
@@ -199,7 +204,7 @@ export async function fetchFamilyBundle(
       .eq("family_id", familyId)
       .is("deleted_at", null)
       .order("recorded_at", { ascending: false })
-      .limit(500),
+      .limit(HOME_CARE_RECORDS_LIMIT),
     supabase
       .from("growth_records")
       .select(
@@ -279,26 +284,10 @@ export async function fetchFamilyBundle(
     })),
   };
 
-  const records: CareRecord[] = ((recordsRes.data ?? []) as DbCare[]).map((row) => {
-    const recorder = profileById.get(row.user_id) ?? {
-      id: row.user_id,
-      displayName: "メンバー",
-      avatarUrl: null,
-    };
-    return {
-      id: row.id,
-      familyId: row.family_id,
-      babyId: row.baby_id,
-      userId: row.user_id,
-      recordType: row.record_type,
-      recordedAt: row.recorded_at,
-      startedAt: row.started_at,
-      endedAt: row.ended_at,
-      note: row.note,
-      detail: mapDetail(row.record_type, row.detail_json),
-      recorder,
-    };
-  });
+  const records = mapCareRows(
+    (recordsRes.data ?? []) as DbCare[],
+    profileById,
+  );
 
   const growth: GrowthPoint[] = ((growthRes.data ?? []) as DbGrowth[]).map((row) => ({
     id: row.id,
@@ -655,16 +644,147 @@ export async function softDeleteHabit(
   if (error) throw error;
 }
 
+function mapCareRows(
+  rows: DbCare[],
+  profileById: Map<string, Profile>,
+): CareRecord[] {
+  return rows.map((row) => {
+    const recorder = profileById.get(row.user_id) ?? {
+      id: row.user_id,
+      displayName: "メンバー",
+      avatarUrl: null,
+    };
+    return {
+      id: row.id,
+      familyId: row.family_id,
+      babyId: row.baby_id,
+      userId: row.user_id,
+      recordType: row.record_type,
+      recordedAt: row.recorded_at,
+      startedAt: row.started_at,
+      endedAt: row.ended_at,
+      note: row.note,
+      detail: mapDetail(row.record_type, row.detail_json),
+      recorder,
+    };
+  });
+}
+
+const CARE_SELECT =
+  "id, family_id, baby_id, user_id, record_type, recorded_at, started_at, ended_at, note, detail_json";
+
+export async function fetchCareRecordsPage(
+  supabase: SupabaseClient,
+  input: {
+    familyId: string;
+    profileById: Map<string, Profile>;
+    limit?: number;
+    /** これより古い recorded_at を取得（ページング用） */
+    beforeRecordedAt?: string | null;
+  },
+): Promise<CareRecord[]> {
+  const limit = input.limit ?? CARE_RECORDS_PAGE_SIZE;
+  let query = supabase
+    .from("care_records")
+    .select(CARE_SELECT)
+    .eq("family_id", input.familyId)
+    .is("deleted_at", null)
+    .order("recorded_at", { ascending: false })
+    .limit(limit);
+
+  if (input.beforeRecordedAt) {
+    query = query.lt("recorded_at", input.beforeRecordedAt);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return mapCareRows((data ?? []) as DbCare[], input.profileById);
+}
+
+export async function fetchCareRecordsInRange(
+  supabase: SupabaseClient,
+  input: {
+    familyId: string;
+    profileById: Map<string, Profile>;
+    fromIso: string;
+    toIso: string;
+  },
+): Promise<CareRecord[]> {
+  const { data, error } = await supabase
+    .from("care_records")
+    .select(CARE_SELECT)
+    .eq("family_id", input.familyId)
+    .is("deleted_at", null)
+    .gte("recorded_at", input.fromIso)
+    .lt("recorded_at", input.toIso)
+    .order("recorded_at", { ascending: false });
+
+  if (error) throw error;
+  return mapCareRows((data ?? []) as DbCare[], input.profileById);
+}
+
+export function buildProfileMapFromState(state: AppState): Map<string, Profile> {
+  const map = new Map<string, Profile>();
+  for (const m of state.family.members) {
+    map.set(m.id, {
+      id: m.id,
+      displayName: m.displayName,
+      avatarUrl: m.avatarUrl,
+    });
+  }
+  if (state.currentUserId) {
+    const me = map.get(state.currentUserId);
+    if (me) map.set(state.currentUserId, me);
+  }
+  return map;
+}
+
+export function applyProfileDisplayName(
+  state: AppState,
+  userId: string,
+  displayName: string,
+): AppState {
+  const members = state.family.members.map((m) =>
+    m.id === userId ? { ...m, displayName } : m,
+  );
+  const records = state.records.map((r) =>
+    r.userId === userId || r.recorder.id === userId
+      ? { ...r, recorder: { ...r.recorder, displayName } }
+      : r,
+  );
+  const concerns = state.concerns.map((c) =>
+    c.recorder.id === userId
+      ? { ...c, recorder: { ...c.recorder, displayName } }
+      : c,
+  );
+  return {
+    ...state,
+    family: { ...state.family, members },
+    records,
+    concerns,
+  };
+}
+
 export function subscribeFamilyRealtime(
   supabase: SupabaseClient,
-  familyId: string,
-  onChange: () => void,
+  input: {
+    familyId: string;
+    memberIds: string[];
+    onChange: () => void;
+    onProfileUpdate?: (userId: string, displayName: string) => void;
+  },
 ): () => void {
-  const channel = supabase
+  const { familyId, memberIds, onChange, onProfileUpdate } = input;
+  let channel = supabase
     .channel(`family-${familyId}`)
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "care_records", filter: `family_id=eq.${familyId}` },
+      {
+        event: "*",
+        schema: "public",
+        table: "care_records",
+        filter: `family_id=eq.${familyId}`,
+      },
       () => onChange(),
     )
     .on(
@@ -679,17 +799,32 @@ export function subscribeFamilyRealtime(
     )
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "concerns", filter: `family_id=eq.${familyId}` },
+      {
+        event: "*",
+        schema: "public",
+        table: "concerns",
+        filter: `family_id=eq.${familyId}`,
+      },
       () => onChange(),
     )
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "habits", filter: `family_id=eq.${familyId}` },
+      {
+        event: "*",
+        schema: "public",
+        table: "habits",
+        filter: `family_id=eq.${familyId}`,
+      },
       () => onChange(),
     )
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "babies", filter: `family_id=eq.${familyId}` },
+      {
+        event: "*",
+        schema: "public",
+        table: "babies",
+        filter: `family_id=eq.${familyId}`,
+      },
       () => onChange(),
     )
     .on(
@@ -701,8 +836,31 @@ export function subscribeFamilyRealtime(
         filter: `family_id=eq.${familyId}`,
       },
       () => onChange(),
-    )
-    .subscribe();
+    );
+
+  if (onProfileUpdate && memberIds.length > 0) {
+    const filter =
+      memberIds.length === 1
+        ? `id=eq.${memberIds[0]}`
+        : `id=in.(${memberIds.join(",")})`;
+    channel = channel.on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "profiles",
+        filter,
+      },
+      (payload) => {
+        const row = payload.new as { id?: string; display_name?: string } | null;
+        if (!row?.id || typeof row.display_name !== "string") return;
+        if (!memberIds.includes(row.id)) return;
+        onProfileUpdate(row.id, row.display_name);
+      },
+    );
+  }
+
+  channel.subscribe();
 
   return () => {
     void supabase.removeChannel(channel);

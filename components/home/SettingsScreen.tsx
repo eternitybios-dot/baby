@@ -16,9 +16,13 @@ import { APP_NAME } from "@/lib/constants";
 import {
   disableNotifications,
   getNotificationPermission,
-  getNotificationPref,
+  getPushRegisteredPref,
   isNotificationSupported,
+  isPartnerNotifyReady,
+  isPushManagerSupported,
 } from "@/lib/notifications";
+import { getSupabaseClient } from "@/lib/supabase/client";
+import { resolveSupabaseConfig } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 
 export function SettingsScreen() {
@@ -37,8 +41,15 @@ export function SettingsScreen() {
   const [memo, setMemo] = useState(baby.memo ?? "");
   const [displayNameDraft, setDisplayNameDraft] = useState<string | null>(null);
   const displayName = displayNameDraft ?? currentUser.displayName;
-  const [notifyOn, setNotifyOn] = useState(() => getNotificationPref());
+  const [notifyReady, setNotifyReady] = useState(() => isPartnerNotifyReady());
+  const [permissionGranted, setPermissionGranted] = useState(
+    () => getNotificationPermission() === "granted",
+  );
+  const [pushRegistered, setPushRegistered] = useState(() =>
+    getPushRegisteredPref(),
+  );
   const notifySupported = isNotificationSupported();
+  const pushSupported = isPushManagerSupported();
   const notifyPermission = getNotificationPermission();
 
   const babyFormKey = `${baby.id}:${baby.name}:${baby.birthDate}`;
@@ -68,12 +79,19 @@ export function SettingsScreen() {
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
           iPhone では Safari のタブではなく、
-          <span className="font-medium text-foreground">ホーム画面に追加したアプリ</span>
+          <span className="font-medium text-foreground">
+            ホーム画面に追加したアプリ
+          </span>
           から開いた状態で、下のボタンを押してください（iOS 16.4以降）。
         </p>
         {!notifySupported ? (
           <p className="mt-3 text-sm text-muted-foreground">
             このブラウザは通知に対応していません。ホーム画面アプリから開いてください。
+          </p>
+        ) : !pushSupported ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Push
+            通知に対応していません。Safariのタブではなく、ホーム画面アイコンから開いてください。
           </p>
         ) : (
           <div className="mt-3 space-y-2">
@@ -81,31 +99,47 @@ export function SettingsScreen() {
               type="button"
               className={cn(
                 "tap-target flex h-11 w-full items-center justify-center rounded-xl border text-sm font-medium",
-                notifyOn && notifyPermission === "granted"
+                notifyReady
                   ? "border-primary bg-primary/30"
                   : "border-border bg-background",
               )}
-              aria-pressed={notifyOn && notifyPermission === "granted"}
+              aria-pressed={notifyReady}
               onClick={async () => {
-                if (notifyOn && getNotificationPermission() === "granted") {
-                  disableNotifications();
-                  setNotifyOn(false);
+                if (notifyReady) {
+                  const config = resolveSupabaseConfig();
+                  const supabase = config ? getSupabaseClient(config) : null;
+                  await disableNotifications(supabase);
+                  setNotifyReady(false);
+                  setPushRegistered(false);
                   toast.message("通知をオフにしました");
                   return;
                 }
                 const result = await enableDeviceNotifications();
-                setNotifyOn(result.ok);
+                setPermissionGranted(result.permissionGranted);
+                setPushRegistered(result.pushRegistered);
+                setNotifyReady(result.ok);
                 if (result.ok) {
                   toast.success(result.detail ?? "通知をオンにしました");
+                } else if (result.permissionGranted && !result.pushRegistered) {
+                  toast.error(
+                    result.detail ??
+                      "端末通知は許可されましたが、相手からの通知設定は未完了です",
+                  );
                 } else {
                   toast.error(result.detail ?? "通知をオンにできませんでした");
                 }
               }}
             >
-              {notifyOn && notifyPermission === "granted"
+              {notifyReady
                 ? "通知オン（タップでオフ）"
                 : "通知をオンにする（テスト通知あり）"}
             </button>
+            {permissionGranted && !pushRegistered ? (
+              <p className="text-xs text-destructive">
+                端末通知は許可されましたが、相手からの通知設定は未完了です。もう一度「通知をオン」を試すか、SQL
+                003 / VAPID 公開鍵の設定を確認してください。
+              </p>
+            ) : null}
             {notifyPermission === "denied" ? (
               <p className="text-xs text-destructive">
                 通知が拒否されています。iPhoneの「設定」→「通知」→「すくすくログ」で許可してください。
@@ -165,7 +199,9 @@ export function SettingsScreen() {
       </section>
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-soft">
-        <h2 className="text-sm font-medium text-muted-foreground">あなたの表示名</h2>
+        <h2 className="text-sm font-medium text-muted-foreground">
+          あなたの表示名
+        </h2>
         <Input
           className="h-11"
           value={displayName}

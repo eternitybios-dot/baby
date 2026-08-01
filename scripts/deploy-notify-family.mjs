@@ -5,10 +5,15 @@
  * 使い方:
  *   SUPABASE_ACCESS_TOKEN=sbp_xxx \
  *   SUPABASE_PROJECT_REF=abcdefghijklmnop \
+ *   VAPID_PUBLIC_KEY=... \
+ *   VAPID_PRIVATE_KEY=... \
+ *   VAPID_SUBJECT=mailto:you@example.com \
  *   node scripts/deploy-notify-family.mjs
  *
  * Project Ref は Project URL の https://<REF>.supabase.co の <REF>
  * Access Token は https://supabase.com/dashboard/account/tokens で作成
+ *
+ * 注意: VAPID 秘密鍵をこのファイルやリポジトリに書かないこと。
  */
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -24,27 +29,22 @@ const PROJECT_REF = (
   ""
 ).trim();
 
-const VAPID_PUBLIC_KEY =
-  process.env.VAPID_PUBLIC_KEY?.trim() ||
-  "BOGThgT-ThjwFpMvvfWN9_pfqLKfZo-f5w9A55bPRYTCaQVnJO9pDwMog1yz_9jYhUPIbeH-USlpYmlMEOnH8zk";
-const VAPID_PRIVATE_KEY =
-  process.env.VAPID_PRIVATE_KEY?.trim() ||
-  "KZAhV4989qRnmm87TVvnlFaD2mAtk_bX-1F-cn2aL3s";
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY?.trim() || "";
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY?.trim() || "";
 const VAPID_SUBJECT =
   process.env.VAPID_SUBJECT?.trim() || "mailto:sukusuku@localhost";
 
-if (!ACCESS_TOKEN) {
-  console.error("SUPABASE_ACCESS_TOKEN がありません。");
-  console.error(
-    "https://supabase.com/dashboard/account/tokens で Personal Access Token を作成してください。",
-  );
-  process.exit(1);
+function requireEnv(name, value) {
+  if (!value) {
+    console.error(`${name} がありません。環境変数で渡してください。`);
+    process.exit(1);
+  }
 }
-if (!PROJECT_REF) {
-  console.error("SUPABASE_PROJECT_REF がありません。");
-  console.error("例: https://abcdxyz.supabase.co → abcdxyz");
-  process.exit(1);
-}
+
+requireEnv("SUPABASE_ACCESS_TOKEN", ACCESS_TOKEN);
+requireEnv("SUPABASE_PROJECT_REF", PROJECT_REF);
+requireEnv("VAPID_PUBLIC_KEY", VAPID_PUBLIC_KEY);
+requireEnv("VAPID_PRIVATE_KEY", VAPID_PRIVATE_KEY);
 
 const functionPath = resolve(
   root,
@@ -95,7 +95,7 @@ async function setSecrets() {
       { name: "VAPID_SUBJECT", value: VAPID_SUBJECT },
     ]),
   });
-  console.log("✓ Secrets 設定完了");
+  console.log("✓ Secrets 設定完了（値はログに出しません）");
 }
 
 async function deployFunction() {
@@ -115,31 +115,26 @@ async function deployFunction() {
     "index.ts",
   );
 
-  const res = await fetch(
-    `${api}/functions/deploy?slug=notify-family`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
-      body: form,
-    },
-  );
+  const res = await fetch(`${api}/functions/deploy?slug=notify-family`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
+    body: form,
+  });
   const text = await res.text();
   if (!res.ok) {
     throw new Error(`deploy failed ${res.status}: ${text}`);
   }
   console.log("✓ Edge Function デプロイ完了");
-  try {
-    console.log(JSON.stringify(JSON.parse(text), null, 2));
-  } catch {
-    console.log(text);
-  }
 }
 
 async function ensureSqlHint() {
   console.log("");
   console.log("まだなら SQL も実行してください:");
   console.log(
-    "https://raw.githubusercontent.com/eternitybios-dot/baby/cursor/sukusuku-log-foundation-814d/supabase/migrations/003_push_subscriptions.sql",
+    "https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/003_push_subscriptions.sql",
+  );
+  console.log(
+    "https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/004_security_hardening.sql",
   );
 }
 

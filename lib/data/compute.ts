@@ -104,6 +104,12 @@ export function getTodayTimeline(
     .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
 }
 
+export function chartPeriodDays(period: ChartPeriod): number {
+  if (period === "30d") return 30;
+  if (period === "custom") return 14;
+  return 7;
+}
+
 function buildDateRange(period: ChartPeriod, now: Date, customDays = 7): string[] {
   const days = period === "30d" ? 30 : customDays;
   const list: string[] = [];
@@ -112,6 +118,23 @@ function buildDateRange(period: ChartPeriod, now: Date, customDays = 7): string[
     list.push(jstYmd(d));
   }
   return list;
+}
+
+/** グラフ期間の取得範囲（JST 日付境界、to は排他） */
+export function chartPeriodRange(
+  period: ChartPeriod,
+  now: Date,
+): { fromIso: string; toIso: string; days: number } {
+  const days = chartPeriodDays(period);
+  const end = startOfJstDay(
+    new Date(now.getTime() + 24 * 60 * 60 * 1000),
+  );
+  const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+  return {
+    days,
+    fromIso: start.toISOString(),
+    toIso: end.toISOString(),
+  };
 }
 
 function emptyPoints(dates: string[]): DailyMetricPoint[] {

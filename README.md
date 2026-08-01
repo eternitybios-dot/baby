@@ -56,7 +56,7 @@ npm run build:pages    # GitHub Pages 用（basePath=/baby）
 
 | パス | 内容 |
 |------|------|
-| `/home` | ホーム・クイック入力・タイムライン |
+| `/home` | ホーム・タイムライン（記録は中央ボタン） |
 | `/calendar` | カレンダー |
 | `/charts` | グラフ |
 | `/settings` | 招待コード・表示名・赤ちゃん情報 |

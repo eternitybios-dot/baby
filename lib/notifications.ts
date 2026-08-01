@@ -3,12 +3,28 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CareRecord, Concern, GrowthPoint, Habit } from "@/types/domain";
 import { timelinePrimaryText } from "@/lib/format";
-import { VAPID_PUBLIC_KEY } from "@/lib/push/vapid-public";
+import {
+  getVapidPublicKey,
+  hasVapidPublicKey,
+} from "@/lib/push/vapid-public";
 
 const NOTIFY_PREF_KEY = "sukusuku-notify-enabled";
+const PUSH_REGISTERED_KEY = "sukusuku-push-registered";
 const localCreatedIds = new Set<string>();
 
 let swReady: Promise<ServiceWorkerRegistration | null> | null = null;
+
+export type EnableNotificationsResult = {
+  /** Push 購読まで含めて相手通知の準備ができたときだけ true */
+  ok: boolean;
+  permissionGranted: boolean;
+  pushRegistered: boolean;
+  detail?: string;
+};
+
+export type NotifyPushResult =
+  | { ok: true; sent: number; total: number }
+  | { ok: false; error: string };
 
 export function markLocalCreated(id: string): void {
   localCreatedIds.add(id);
@@ -39,6 +55,10 @@ export function isNotificationSupported(): boolean {
   );
 }
 
+export function isPushManagerSupported(): boolean {
+  return typeof window !== "undefined" && "PushManager" in window;
+}
+
 export function getNotificationPermission(): NotificationPermission | "unsupported" {
   if (typeof window === "undefined" || !("Notification" in window)) {
     return "unsupported";
@@ -56,6 +76,25 @@ export function setNotificationPref(enabled: boolean): void {
   window.localStorage.setItem(NOTIFY_PREF_KEY, enabled ? "1" : "0");
 }
 
+export function getPushRegisteredPref(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(PUSH_REGISTERED_KEY) === "1";
+}
+
+export function setPushRegisteredPref(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(PUSH_REGISTERED_KEY, enabled ? "1" : "0");
+}
+
+/** 端末許可済みかつ Push 購読保存済みのときだけ「通知オン」とみなす */
+export function isPartnerNotifyReady(): boolean {
+  return (
+    getNotificationPref() &&
+    getPushRegisteredPref() &&
+    getNotificationPermission() === "granted"
+  );
+}
+
 export async function ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
     return null;
@@ -65,7 +104,7 @@ export async function ensureServiceWorker(): Promise<ServiceWorkerRegistration |
       try {
         const base = getAppBasePath();
         const reg = await navigator.serviceWorker.register(
-          `${base}/sw.js?v=20260801b`,
+          `${base}/sw.js?v=20260801-sec`,
           {
             scope: `${base}/`,
             updateViaCache: "none",
@@ -101,18 +140,60 @@ export async function ensureNotificationPermission(): Promise<NotificationPermis
 
 async function subscribePush(
   registration: ServiceWorkerRegistration,
-): Promise<PushSubscription | null> {
-  if (!("PushManager" in window)) return null;
+): Promise<{ sub: PushSubscription | null; reason?: string }> {
+  if (!hasVapidPublicKey()) {
+    return {
+      sub: null,
+      reason:
+        "通知用の公開鍵が設定されていません。管理者に NEXT_PUBLIC_VAPID_PUBLIC_KEY の設定を依頼してください",
+    };
+  }
+  if (!("PushManager" in window)) {
+    return {
+      sub: null,
+      reason:
+        "この環境は Push 通知に対応していません。ホーム画面に追加したアプリから開いてください（Safariのタブでは使えません）",
+    };
+  }
   try {
     const existing = await registration.pushManager.getSubscription();
-    if (existing) return existing;
-    return await registration.pushManager.subscribe({
+    if (existing) return { sub: existing };
+    const sub = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+      applicationServerKey: urlBase64ToUint8Array(
+        getVapidPublicKey(),
+      ) as BufferSource,
     });
+    return { sub };
   } catch {
-    return null;
+    return {
+      sub: null,
+      reason:
+        "Push 購読に失敗しました。ホーム画面アイコンから開き、iOS 16.4以降か確認してください",
+    };
   }
+}
+
+export async function removeLocalPushSubscription(): Promise<void> {
+  const registration = await ensureServiceWorker();
+  if (!registration) return;
+  try {
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) await existing.unsubscribe();
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function deletePushSubscriptionRemote(
+  supabase: SupabaseClient,
+  endpoint: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("push_subscriptions")
+    .delete()
+    .eq("endpoint", endpoint);
+  if (error) throw error;
 }
 
 export async function savePushSubscription(
@@ -120,15 +201,31 @@ export async function savePushSubscription(
   familyId: string,
   userId: string,
 ): Promise<{ ok: boolean; reason?: string }> {
-  const registration = await ensureServiceWorker();
-  if (!registration) {
-    return { ok: false, reason: "Service Worker を登録できませんでした。ホーム画面アプリから開き直してください" };
-  }
-  const sub = await subscribePush(registration);
-  if (!sub) {
+  if (!hasVapidPublicKey()) {
+    setPushRegisteredPref(false);
     return {
       ok: false,
       reason:
+        "通知用の公開鍵が設定されていません。管理者に NEXT_PUBLIC_VAPID_PUBLIC_KEY の設定を依頼してください",
+    };
+  }
+
+  const registration = await ensureServiceWorker();
+  if (!registration) {
+    setPushRegisteredPref(false);
+    return {
+      ok: false,
+      reason:
+        "Service Worker を登録できませんでした。ホーム画面アプリから開き直してください",
+    };
+  }
+  const { sub, reason } = await subscribePush(registration);
+  if (!sub) {
+    setPushRegisteredPref(false);
+    return {
+      ok: false,
+      reason:
+        reason ??
         "Push 購読に失敗しました。ホーム画面アイコンから開き、iOS 16.4以降か確認してください",
     };
   }
@@ -138,6 +235,7 @@ export async function savePushSubscription(
   const p256dh = json.keys?.p256dh;
   const auth = json.keys?.auth;
   if (!endpoint || !p256dh || !auth) {
+    setPushRegisteredPref(false);
     return { ok: false, reason: "Push 購読情報が不完全です" };
   }
 
@@ -154,12 +252,14 @@ export async function savePushSubscription(
     { onConflict: "endpoint" },
   );
   if (error) {
+    setPushRegisteredPref(false);
     return {
       ok: false,
       reason:
         "購読の保存に失敗しました。Supabase で 003_push_subscriptions.sql を実行してください",
     };
   }
+  setPushRegisteredPref(true);
   return { ok: true };
 }
 
@@ -167,39 +267,69 @@ export async function enableNotifications(input?: {
   supabase?: SupabaseClient | null;
   familyId?: string;
   userId?: string;
-}): Promise<{ ok: boolean; detail?: string }> {
+}): Promise<EnableNotificationsResult> {
+  if (!isNotificationSupported()) {
+    setNotificationPref(false);
+    setPushRegisteredPref(false);
+    return {
+      ok: false,
+      permissionGranted: false,
+      pushRegistered: false,
+      detail:
+        "このブラウザは通知に対応していません。ホーム画面に追加したアプリから開いてください",
+    };
+  }
+
   await ensureServiceWorker();
   const permission = await ensureNotificationPermission();
   if (permission !== "granted") {
     setNotificationPref(false);
+    setPushRegisteredPref(false);
     return {
       ok: false,
+      permissionGranted: false,
+      pushRegistered: false,
       detail:
         permission === "denied"
           ? "通知が拒否されています。iPhoneの設定 → 通知 から許可してください"
           : "通知が許可されませんでした。ホーム画面アプリから開き直してください",
     };
   }
+
   setNotificationPref(true);
 
-  let detail = "通知オン。テスト通知を送りました";
-  if (input?.supabase && input.familyId && input.userId) {
-    const saved = await savePushSubscription(
-      input.supabase,
-      input.familyId,
-      input.userId,
-    );
-    if (!saved.ok) {
-      detail = saved.reason ?? "Push 購読の保存に失敗しました";
-      // 許可自体は取れたのでテスト通知は出す
-      await showOsNotification({
-        title: "すくすくログ",
-        body: "端末の通知許可はOKです（相手への配信設定に問題あり）",
-        tag: "sukusuku-test",
-        href: appPath("/home"),
-      });
-      return { ok: true, detail };
-    }
+  if (!input?.supabase || !input.familyId || !input.userId) {
+    setPushRegisteredPref(false);
+    return {
+      ok: false,
+      permissionGranted: true,
+      pushRegistered: false,
+      detail:
+        "端末通知は許可されましたが、相手からの通知設定は未完了です（サーバー未接続）",
+    };
+  }
+
+  const saved = await savePushSubscription(
+    input.supabase,
+    input.familyId,
+    input.userId,
+  );
+  if (!saved.ok) {
+    setPushRegisteredPref(false);
+    await showOsNotification({
+      title: "すくすくログ",
+      body: "端末の通知許可はOKです（相手への配信設定は未完了）",
+      tag: "sukusuku-test",
+      href: appPath("/home"),
+    });
+    return {
+      ok: false,
+      permissionGranted: true,
+      pushRegistered: false,
+      detail:
+        saved.reason ??
+        "端末通知は許可されましたが、相手からの通知設定は未完了です",
+    };
   }
 
   await showOsNotification({
@@ -208,11 +338,36 @@ export async function enableNotifications(input?: {
     tag: "sukusuku-test",
     href: appPath("/home"),
   });
-  return { ok: true, detail };
+  return {
+    ok: true,
+    permissionGranted: true,
+    pushRegistered: true,
+    detail: "通知オン。テスト通知を送りました",
+  };
 }
 
-export function disableNotifications(): void {
+export async function disableNotifications(
+  supabase?: SupabaseClient | null,
+): Promise<void> {
   setNotificationPref(false);
+  setPushRegisteredPref(false);
+  try {
+    const registration = await ensureServiceWorker();
+    const existing = registration
+      ? await registration.pushManager.getSubscription()
+      : null;
+    if (existing) {
+      const endpoint = existing.endpoint;
+      await existing.unsubscribe();
+      if (supabase && endpoint) {
+        await deletePushSubscriptionRemote(supabase, endpoint).catch(() => {
+          /* ローカル解除は成功扱い */
+        });
+      }
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 export async function showOsNotification(input: {
@@ -228,9 +383,9 @@ export async function showOsNotification(input: {
   const registration = await ensureServiceWorker();
   const href = input.href;
 
-  // iOS PWA は Service Worker の showNotification が必要
   if (registration) {
-    const worker = registration.active ?? registration.waiting ?? registration.installing;
+    const worker =
+      registration.active ?? registration.waiting ?? registration.installing;
     if (worker) {
       worker.postMessage({
         type: "SHOW_NOTIFICATION",
@@ -279,9 +434,9 @@ export async function notifyFamilyPush(
     url: string;
     excludeUserId: string;
   },
-): Promise<void> {
+): Promise<NotifyPushResult> {
   try {
-    await supabase.functions.invoke("notify-family", {
+    const { data, error } = await supabase.functions.invoke("notify-family", {
       body: {
         familyId: input.familyId,
         title: input.title,
@@ -290,8 +445,34 @@ export async function notifyFamilyPush(
         excludeUserId: input.excludeUserId,
       },
     });
-  } catch {
-    /* Edge Function 未デプロイ時は無視（フォアグラウンド通知は動く） */
+    if (error) {
+      return {
+        ok: false,
+        error: error.message || "相手への通知送信に失敗しました",
+      };
+    }
+    const payload = data as {
+      ok?: boolean;
+      sent?: number;
+      total?: number;
+      error?: string;
+    } | null;
+    if (payload?.error) {
+      return { ok: false, error: String(payload.error) };
+    }
+    return {
+      ok: true,
+      sent: Number(payload?.sent ?? 0),
+      total: Number(payload?.total ?? 0),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "相手への通知送信に失敗しました",
+    };
   }
 }
 

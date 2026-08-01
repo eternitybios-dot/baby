@@ -146,15 +146,34 @@ Deno.serve(async (req) => {
         .in("endpoint", goneEndpoints);
     }
 
+    const total = subs?.length ?? 0;
     const sent = results.filter((r) => r.status === "fulfilled").length;
+    // 送信先がない場合は失敗ではない（相手が未購読）
+    // 1件以上あるのに sent < total なら失敗 / 部分失敗
+    let status = "ok";
+    let ok = true;
+    if (total === 0) {
+      status = "no_recipients";
+      ok = true;
+    } else if (sent === 0) {
+      status = "failed";
+      ok = false;
+    } else if (sent < total) {
+      status = "partial";
+      ok = false;
+    }
+
     return new Response(
       JSON.stringify({
-        ok: true,
+        ok,
+        status,
         sent,
-        total: subs?.length ?? 0,
+        total,
         pruned: goneEndpoints.length,
       }),
       {
+        // アプリ側で body.ok を見る。HTTP は 2xx のまま（invoke の通信エラーと区別）
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );

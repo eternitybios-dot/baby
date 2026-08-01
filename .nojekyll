@@ -1,0 +1,5 @@
+# GitHub Pages デプロイ設定
+# https://docs.github.com/pages
+
+# Build with: GITHUB_PAGES=true npm run build
+# Output directory: out/

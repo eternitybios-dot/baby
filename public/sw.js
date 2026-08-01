@@ -1,11 +1,52 @@
-/* すくすくログ Service Worker — iOS PWA 通知用 */
+/* すくすくログ Service Worker — iOS PWA 通知 + キャッシュ更新 */
+const SW_VERSION = "2026-08-01-quick-input-removed";
 
-self.addEventListener("install", () => {
+self.addEventListener("install", (event) => {
   self.skipWaiting();
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.map((key) => caches.delete(key))),
+    ),
+  );
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key !== SW_VERSION)
+            .map((key) => caches.delete(key)),
+        ),
+      )
+      .then(() => self.clients.claim())
+      .then(() =>
+        self.clients.matchAll({ type: "window", includeUncontrolled: true }),
+      )
+      .then((clients) => {
+        for (const client of clients) {
+          client.postMessage({ type: "SW_UPDATED", version: SW_VERSION });
+        }
+      }),
+  );
+});
+
+// HTML は常にネット優先（古いホームが残らないようにする）
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  if (request.method !== "GET") return;
+
+  const accept = request.headers.get("accept") || "";
+  const isNavigate =
+    request.mode === "navigate" || accept.includes("text/html");
+
+  if (!isNavigate) return;
+
+  event.respondWith(
+    fetch(request, { cache: "no-store" }).catch(() => caches.match(request)),
+  );
 });
 
 self.addEventListener("message", (event) => {

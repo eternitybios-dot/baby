@@ -64,9 +64,14 @@ export async function ensureServiceWorker(): Promise<ServiceWorkerRegistration |
     swReady = (async () => {
       try {
         const base = getAppBasePath();
-        const reg = await navigator.serviceWorker.register(`${base}/sw.js`, {
-          scope: `${base}/`,
-        });
+        const reg = await navigator.serviceWorker.register(
+          `${base}/sw.js?v=20260801b`,
+          {
+            scope: `${base}/`,
+            updateViaCache: "none",
+          },
+        );
+        await reg.update();
         await navigator.serviceWorker.ready;
         return reg;
       } catch {

@@ -86,7 +86,7 @@ export function BottomNavigation({ onRecordPress }: BottomNavigationProps) {
               type="button"
               onClick={onRecordPress}
               className="flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-soft ring-4 ring-background transition active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/50"
-              aria-label="記録（クイック入力）"
+              aria-label="記録"
             >
               <Plus className="size-8" strokeWidth={2.25} />
             </button>

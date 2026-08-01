@@ -282,12 +282,28 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (bootPhase !== "ready") return;
     void ensureServiceWorker();
-    if (!getNotificationPref()) return;
-    const supabase = supabaseRef.current;
-    const familyId = familyIdRef.current || state.baby.familyId;
-    const userId = userIdRef.current;
-    if (!supabase || !familyId || !userId) return;
-    void savePushSubscription(supabase, familyId, userId);
+
+    const onSwMessage = (event: MessageEvent) => {
+      if (event.data?.type !== "SW_UPDATED") return;
+      const key = "sukusuku-sw-reload";
+      if (sessionStorage.getItem(key) === event.data.version) return;
+      sessionStorage.setItem(key, event.data.version);
+      window.location.reload();
+    };
+    navigator.serviceWorker?.addEventListener("message", onSwMessage);
+
+    if (getNotificationPref()) {
+      const supabase = supabaseRef.current;
+      const familyId = familyIdRef.current || state.baby.familyId;
+      const userId = userIdRef.current;
+      if (supabase && familyId && userId) {
+        void savePushSubscription(supabase, familyId, userId);
+      }
+    }
+
+    return () => {
+      navigator.serviceWorker?.removeEventListener("message", onSwMessage);
+    };
   }, [bootPhase, state.baby.familyId]);
 
   const pushToFamily = useCallback(

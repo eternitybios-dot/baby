@@ -126,18 +126,12 @@ export function SettingsScreen() {
                   toast.message("通知をオフにしました");
                   return;
                 }
-                const ok = await enableDeviceNotifications();
-                setNotifyOn(ok);
-                if (ok) {
-                  toast.success("通知オン。テスト通知も送りました");
-                } else if (getNotificationPermission() === "denied") {
-                  toast.error(
-                    "通知がブロックされています。iPhoneの設定 → 通知 から許可してください",
-                  );
+                const result = await enableDeviceNotifications();
+                setNotifyOn(result.ok);
+                if (result.ok) {
+                  toast.success(result.detail ?? "通知をオンにしました");
                 } else {
-                  toast.error(
-                    "通知を許可できませんでした。ホーム画面アプリから開き直して再試行してください",
-                  );
+                  toast.error(result.detail ?? "通知をオンにできませんでした");
                 }
               }}
             >

@@ -1,27 +1,30 @@
-# iPhone 通知セットアップ（かんたん版）
+# iPhone 通知が届かないとき
 
-## いちばん簡単（おすすめ）
+## 結論（妻側）
 
-アプリの **設定** を開くと「通知サーバーセットアップ」があります。
+**以前ホーム画面に追加済みでも、一度消して入れ直すのが確実**です。  
+Service Worker（通知の土台）が古い状態のまま残ることがあります。
 
-1. https://supabase.com/dashboard/account/tokens で **Generate new token**
-2. できた `sbp_...` をアプリに貼る
-3. Project Ref を入れる（URL の `https://ここ.supabase.co`）
-4. **自動で作成する** を押す
+## 夫婦どちらもやること
 
-これで Edge Function と VAPID Secrets まで作れます。
+1. ホーム画面の「すくすくログ」を削除
+2. Safari で https://eternitybios-dot.github.io/baby/home/ を開く
+3. 共有 → **ホーム画面に追加**
+4. **そのアイコンから**開く（Safariのタブではない）
+5. 設定 → **通知をオン** → 許可  
+   - 「通知がオンになりました」のテスト通知が来るか確認
+6. もう一方の端末でも同じ
 
-その後、両方の iPhone で **通知をオン** し直してください。
+## あなた（セットアップ担当）だけ
 
-## SQL がまだなら
+SQL をまだなら実行（これを忘れると相手に届きません）:
 
-[003_push_subscriptions.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/cursor/sukusuku-log-foundation-814d/supabase/migrations/003_push_subscriptions.sql)
-を SQL Editor で実行。
+https://raw.githubusercontent.com/eternitybios-dot/baby/cursor/sukusuku-log-foundation-814d/supabase/migrations/003_push_subscriptions.sql
 
-## 開発者向け（CLI）
+## 確認ポイント
 
-```bash
-SUPABASE_ACCESS_TOKEN=sbp_xxx \
-SUPABASE_PROJECT_REF=your_ref \
-node scripts/deploy-notify-family.mjs
-```
+| 症状 | 見方 |
+|------|------|
+| テスト通知も来ない | ホーム画面から開いていない / 通知許可オフ / 入れ直し不足 |
+| テストは来るが相手の入力が来ない | 相手が通知オフ / SQL 003 未実行 / 相手も入れ直しが必要 |
+| Safari タブでは来るがアイコンだと… | 必ずホーム画面アイコンから開く |

@@ -114,17 +114,27 @@ export async function savePushSubscription(
   supabase: SupabaseClient,
   familyId: string,
   userId: string,
-): Promise<boolean> {
+): Promise<{ ok: boolean; reason?: string }> {
   const registration = await ensureServiceWorker();
-  if (!registration) return false;
+  if (!registration) {
+    return { ok: false, reason: "Service Worker を登録できませんでした。ホーム画面アプリから開き直してください" };
+  }
   const sub = await subscribePush(registration);
-  if (!sub) return false;
+  if (!sub) {
+    return {
+      ok: false,
+      reason:
+        "Push 購読に失敗しました。ホーム画面アイコンから開き、iOS 16.4以降か確認してください",
+    };
+  }
 
   const json = sub.toJSON();
   const endpoint = json.endpoint;
   const p256dh = json.keys?.p256dh;
   const auth = json.keys?.auth;
-  if (!endpoint || !p256dh || !auth) return false;
+  if (!endpoint || !p256dh || !auth) {
+    return { ok: false, reason: "Push 購読情報が不完全です" };
+  }
 
   const { error } = await supabase.from("push_subscriptions").upsert(
     {
@@ -138,33 +148,62 @@ export async function savePushSubscription(
     },
     { onConflict: "endpoint" },
   );
-  return !error;
+  if (error) {
+    return {
+      ok: false,
+      reason:
+        "購読の保存に失敗しました。Supabase で 003_push_subscriptions.sql を実行してください",
+    };
+  }
+  return { ok: true };
 }
 
 export async function enableNotifications(input?: {
   supabase?: SupabaseClient | null;
   familyId?: string;
   userId?: string;
-}): Promise<boolean> {
+}): Promise<{ ok: boolean; detail?: string }> {
   await ensureServiceWorker();
   const permission = await ensureNotificationPermission();
-  const ok = permission === "granted";
-  setNotificationPref(ok);
+  if (permission !== "granted") {
+    setNotificationPref(false);
+    return {
+      ok: false,
+      detail:
+        permission === "denied"
+          ? "通知が拒否されています。iPhoneの設定 → 通知 から許可してください"
+          : "通知が許可されませんでした。ホーム画面アプリから開き直してください",
+    };
+  }
+  setNotificationPref(true);
 
-  if (ok && input?.supabase && input.familyId && input.userId) {
-    await savePushSubscription(input.supabase, input.familyId, input.userId);
+  let detail = "通知オン。テスト通知を送りました";
+  if (input?.supabase && input.familyId && input.userId) {
+    const saved = await savePushSubscription(
+      input.supabase,
+      input.familyId,
+      input.userId,
+    );
+    if (!saved.ok) {
+      detail = saved.reason ?? "Push 購読の保存に失敗しました";
+      // 許可自体は取れたのでテスト通知は出す
+      await showOsNotification({
+        title: "すくすくログ",
+        body: "端末の通知許可はOKです（相手への配信設定に問題あり）",
+        tag: "sukusuku-test",
+        href: appPath("/home"),
+      });
+      return { ok: true, detail };
+    }
   }
 
-  if (ok) {
-    // 動作確認用のテスト通知（iOS は SW 経由が必須）
-    await showOsNotification({
-      title: "すくすくログ",
-      body: "通知がオンになりました",
-      tag: "sukusuku-test",
-      href: appPath("/home"),
-    });
-  }
-  return ok;
+  await showOsNotification({
+    title: "すくすくログ",
+    body: "通知がオンになりました",
+    tag: "sukusuku-test",
+    href: appPath("/home"),
+  });
+  return { ok: true, detail };
 }
 
 export function disableNotifications(): void {

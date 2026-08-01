@@ -154,7 +154,7 @@ interface AppDataContextValue {
     displayName: string;
   }) => Promise<void>;
   refresh: () => Promise<void>;
-  enableDeviceNotifications: () => Promise<boolean>;
+  enableDeviceNotifications: () => Promise<{ ok: boolean; detail?: string }>;
 }
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);

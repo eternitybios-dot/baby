@@ -3,6 +3,7 @@
 import { BabyHeader } from "@/components/home/BabyHeader";
 import { CurrentStatusCard } from "@/components/home/CurrentStatusCard";
 import { HomeConcerns } from "@/components/home/HomeConcerns";
+import { MoreLinks } from "@/components/home/MoreLinks";
 import { QuickActionGrid } from "@/components/home/QuickActionGrid";
 import { TodaySummary } from "@/components/home/TodaySummary";
 import { Timeline } from "@/components/records/Timeline";
@@ -19,6 +20,7 @@ export function HomeScreen() {
       <QuickActionGrid />
       <HomeConcerns concerns={concerns} />
       <Timeline records={timeline} />
+      <MoreLinks />
     </div>
   );
 }

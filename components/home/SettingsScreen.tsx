@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppData } from "@/components/providers/AppDataProvider";
+import { PushSetupPanel } from "@/components/home/PushSetupPanel";
 import { APP_NAME } from "@/lib/constants";
 import {
   disableNotifications,
@@ -153,6 +154,8 @@ export function SettingsScreen() {
           </div>
         )}
       </section>
+
+      <PushSetupPanel />
 
       <section className="rounded-2xl bg-card p-4 shadow-soft">
         <div className="mb-3 flex items-center gap-2 text-muted-foreground">

@@ -73,27 +73,25 @@ export function ConcernsScreen() {
         </p>
       </header>
 
-      <section className="space-y-3 rounded-2xl bg-card p-4 shadow-soft">
+      <section className="space-y-4 rounded-2xl bg-card p-4 shadow-soft">
         <p className="text-sm font-medium">新しい困り事</p>
-        <div className="space-y-1">
+        <div className="flex min-w-0 flex-col gap-2">
           <Label htmlFor="concernTitle">タイトル</Label>
           <Input
             id="concernTitle"
-            className="h-11"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
         </div>
-        <div className="space-y-1">
+        <div className="flex min-w-0 flex-col gap-2">
           <Label htmlFor="concernCategory">カテゴリー</Label>
           <Input
             id="concernCategory"
-            className="h-11"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
           />
         </div>
-        <div className="space-y-1">
+        <div className="flex min-w-0 flex-col gap-2">
           <Label htmlFor="concernBody">内容</Label>
           <Textarea
             id="concernBody"

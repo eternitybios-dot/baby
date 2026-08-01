@@ -76,55 +76,65 @@ export function GrowthScreen() {
         <p className="text-sm text-muted-foreground">体重・身長・頭囲の推移</p>
       </header>
 
-      <section className="space-y-3 rounded-2xl bg-card p-4 shadow-soft">
+      <section className="space-y-4 rounded-2xl bg-card p-4 shadow-soft">
         <p className="text-sm font-medium">新しい測定を追加</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="measuredAt">測定日</Label>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-5">
+          <div className="flex min-w-0 flex-col gap-2">
+            <Label htmlFor="measuredAt" className="leading-normal">
+              測定日
+            </Label>
             <Input
               id="measuredAt"
               type="date"
-              className="h-11"
+              className="box-border h-11 min-h-11"
               value={measuredAt}
               onChange={(e) => setMeasuredAt(e.target.value)}
             />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="weightKg">体重 (kg)</Label>
+          <div className="flex min-w-0 flex-col gap-2">
+            <Label htmlFor="weightKg" className="leading-normal">
+              体重 (kg)
+            </Label>
             <Input
               id="weightKg"
               inputMode="decimal"
-              className="h-11"
+              className="box-border h-11 min-h-11"
               value={weightKg}
               onChange={(e) => setWeightKg(e.target.value)}
             />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="heightCm">身長 (cm)</Label>
+          <div className="flex min-w-0 flex-col gap-2">
+            <Label htmlFor="heightCm" className="leading-normal">
+              身長 (cm)
+            </Label>
             <Input
               id="heightCm"
               inputMode="decimal"
-              className="h-11"
+              className="box-border h-11 min-h-11"
               value={heightCm}
               onChange={(e) => setHeightCm(e.target.value)}
             />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="headCm">頭囲 (cm)</Label>
+          <div className="flex min-w-0 flex-col gap-2">
+            <Label htmlFor="headCm" className="leading-normal">
+              頭囲 (cm)
+            </Label>
             <Input
               id="headCm"
               inputMode="decimal"
-              className="h-11"
+              className="box-border h-11 min-h-11"
               value={headCm}
               onChange={(e) => setHeadCm(e.target.value)}
             />
           </div>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="growthNote">メモ</Label>
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor="growthNote" className="leading-normal">
+            メモ
+          </Label>
           <Input
             id="growthNote"
-            className="h-11"
+            className="box-border h-11 min-h-11"
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />

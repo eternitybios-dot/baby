@@ -73,7 +73,7 @@ function DrawerOverlay({
       data-slot="drawer-overlay"
       className={cn(
         // fixed 維持。複雑な swipe opacity は iOS で透明のまま固まることがあるため使わない
-        "fixed inset-0 z-50 min-h-dvh bg-black/45 backdrop-blur-md transition-opacity duration-300 select-none data-ending-style:pointer-events-none data-ending-style:opacity-0 data-starting-style:opacity-0",
+        "fixed inset-0 z-50 min-h-dvh bg-black/20 backdrop-blur-[2px] transition-opacity duration-300 select-none data-ending-style:pointer-events-none data-ending-style:opacity-0 data-starting-style:opacity-0",
         className
       )}
       {...props}

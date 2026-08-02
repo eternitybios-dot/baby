@@ -110,7 +110,7 @@ export async function ensureServiceWorker(): Promise<ServiceWorkerRegistration |
       try {
         const base = getAppBasePath();
         const reg = await navigator.serviceWorker.register(
-          `${base}/sw.js?v=20260802-backdrop`,
+          `${base}/sw.js?v=20260802-backdrop-light`,
           {
             scope: `${base}/`,
             updateViaCache: "none",

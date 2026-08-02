@@ -76,7 +76,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           <div
             className={cn(
               "app-max-width relative min-h-dvh bg-background transition-[filter,opacity] duration-300",
-              overlayOpen && "pointer-events-none opacity-60 blur-sm",
+              overlayOpen && "pointer-events-none blur-[2px]",
             )}
             aria-hidden={overlayOpen || undefined}
           >

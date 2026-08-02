@@ -1,5 +1,5 @@
 /* すくすくログ Service Worker — iOS PWA 通知 + キャッシュ更新 */
-const SW_VERSION = "2026-08-02-baby-icon";
+const SW_VERSION = "2026-08-02b-icon-corners";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();

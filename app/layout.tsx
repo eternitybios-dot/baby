@@ -36,19 +36,19 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: `${basePath}/icon-192.png?v=20260802`,
+        url: `${basePath}/icon-192.png?v=20260802b`,
         sizes: "192x192",
         type: "image/png",
       },
       {
-        url: `${basePath}/icon-512.png?v=20260802`,
+        url: `${basePath}/icon-512.png?v=20260802b`,
         sizes: "512x512",
         type: "image/png",
       },
     ],
     apple: [
       {
-        url: `${basePath}/apple-touch-icon.png?v=20260802`,
+        url: `${basePath}/apple-touch-icon.png?v=20260802b`,
         sizes: "180x180",
         type: "image/png",
       },
@@ -85,11 +85,11 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content={APP_NAME} />
         <link
           rel="apple-touch-icon"
-          href={`${basePath}/apple-touch-icon.png?v=20260802`}
+          href={`${basePath}/apple-touch-icon.png?v=20260802b`}
         />
         <link
           rel="manifest"
-          href={`${basePath}/manifest.webmanifest?v=20260802`}
+          href={`${basePath}/manifest.webmanifest?v=20260802b`}
         />
       </head>
       <body className="min-h-full flex flex-col overflow-x-hidden overscroll-none">

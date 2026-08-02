@@ -70,6 +70,7 @@ import {
   markLocalCreated,
   notifyFamilyPush,
   savePushSubscription,
+  sendTestOsNotification,
   setPushRegisteredPref,
   type EnableNotificationsResult,
 } from "@/lib/notifications";
@@ -180,6 +181,7 @@ interface AppDataContextValue {
   pushRegistered: boolean;
   enableDeviceNotifications: () => Promise<EnableNotificationsResult>;
   disableDeviceNotifications: () => Promise<void>;
+  sendTestDeviceNotification: () => Promise<{ ok: boolean; detail: string }>;
 }
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
@@ -1094,6 +1096,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         applyPushRegistration(false);
         setNotifyPermissionGranted(getNotificationPermission() === "granted");
       },
+      sendTestDeviceNotification: () => sendTestOsNotification(),
     };
   }, [
     bootPhase,

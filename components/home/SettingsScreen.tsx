@@ -33,6 +33,7 @@ export function SettingsScreen() {
     pushRegistered,
     enableDeviceNotifications,
     disableDeviceNotifications,
+    sendTestDeviceNotification,
   } = useAppData();
   const [name, setName] = useState(baby.name);
   const [nickname, setNickname] = useState(baby.nickname ?? "");
@@ -119,6 +120,22 @@ export function SettingsScreen() {
                 ? "通知オン（タップでオフ）"
                 : "通知をオンにする（テスト通知あり）"}
             </button>
+            {notifyPermissionGranted ? (
+              <button
+                type="button"
+                className="tap-target flex h-11 w-full items-center justify-center rounded-xl border border-border bg-background text-sm font-medium"
+                onClick={async () => {
+                  const result = await sendTestDeviceNotification();
+                  if (result.ok) toast.success(result.detail);
+                  else toast.error(result.detail);
+                }}
+              >
+                テスト通知を送る
+              </button>
+            ) : null}
+            <p className="text-[11px] text-muted-foreground">
+              iPhone ではアプリを開いたままだとバナーが出ないことがあります。テスト後に一度ホーム画面へ戻って確認してください。
+            </p>
             {notifyPermissionGranted && !pushRegistered ? (
               <p className="text-xs text-destructive">
                 端末の通知許可はできていますが、相手への配信設定がまだ完了していません。もう一度「通知をオン」を試すか、ホーム画面アイコンから開き直してください。直らない場合は管理者に通知サーバー設定を依頼してください。

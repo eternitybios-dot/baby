@@ -50,6 +50,7 @@ npx web-push generate-vapid-keys
 ### ローテーション（本番投入前に必須）
 
 過去のコミットに VAPID 秘密鍵が含まれています（ブランチ上の削除だけでは不十分）。
+手順の要約とオーナー作業一覧は [OPS_CHECKLIST.md](./OPS_CHECKLIST.md) を参照。
 
 1. 新しい VAPID 鍵ペアを生成する（`npx web-push generate-vapid-keys`）
 2. Supabase Secrets の `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` を**新しい鍵だけ**に更新
@@ -60,6 +61,10 @@ npx web-push generate-vapid-keys
 7. （推奨）Git 履歴からの秘密情報削除は、GitHub の公式手順に従い別途実施
 
 **古い公開鍵と新しい秘密鍵を混ぜて使わないでください。**
+
+### 004 適用確認
+
+→ [005_verify_security_hardening.sql](../supabase/migrations/005_verify_security_hardening.sql)
 
 ## 確認ポイント
 

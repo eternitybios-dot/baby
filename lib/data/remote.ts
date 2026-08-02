@@ -451,8 +451,10 @@ export async function softDeleteCareRecord(
   supabase: SupabaseClient,
   id: string,
 ): Promise<void> {
-  // ハードデリート（soft delete の UPDATE は RLS WITH CHECK で失敗しやすい）
-  const { error } = await supabase.from("care_records").delete().eq("id", id);
+  const { error } = await supabase
+    .from("care_records")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) throw error;
 }
 
@@ -495,7 +497,10 @@ export async function softDeleteGrowth(
   supabase: SupabaseClient,
   id: string,
 ): Promise<void> {
-  const { error } = await supabase.from("growth_records").delete().eq("id", id);
+  const { error } = await supabase
+    .from("growth_records")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) throw error;
 }
 
@@ -565,7 +570,10 @@ export async function softDeleteConcern(
   supabase: SupabaseClient,
   id: string,
 ): Promise<void> {
-  const { error } = await supabase.from("concerns").delete().eq("id", id);
+  const { error } = await supabase
+    .from("concerns")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) throw error;
 }
 
@@ -641,7 +649,10 @@ export async function softDeleteHabit(
   supabase: SupabaseClient,
   id: string,
 ): Promise<void> {
-  const { error } = await supabase.from("habits").delete().eq("id", id);
+  const { error } = await supabase
+    .from("habits")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) throw error;
 }
 

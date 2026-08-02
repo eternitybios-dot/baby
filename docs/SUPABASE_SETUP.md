@@ -47,7 +47,11 @@ iPhone の通知（ホーム画面アプリ）を使う場合は追加で:
 
 → [004_security_hardening.sql（生テキスト）](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/004_security_hardening.sql)
 
-詳しい通知手順: [docs/PUSH_SETUP.md](./PUSH_SETUP.md)
+適用できているかは確認用 SQL で検査できます:
+
+→ [005_verify_security_hardening.sql（生テキスト）](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/005_verify_security_hardening.sql)
+
+詳しい通知手順: [docs/PUSH_SETUP.md](./PUSH_SETUP.md) / 運用一覧: [docs/OPS_CHECKLIST.md](./OPS_CHECKLIST.md)
 
 ## 4. アプリ側の接続
 

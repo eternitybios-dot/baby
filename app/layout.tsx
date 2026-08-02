@@ -83,8 +83,14 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content={APP_NAME} />
-        <link rel="apple-touch-icon" href={`${basePath}/apple-touch-icon.png`} />
-        <link rel="manifest" href={`${basePath}/manifest.webmanifest`} />
+        <link
+          rel="apple-touch-icon"
+          href={`${basePath}/apple-touch-icon.png?v=20260802`}
+        />
+        <link
+          rel="manifest"
+          href={`${basePath}/manifest.webmanifest?v=20260802`}
+        />
       </head>
       <body className="min-h-full flex flex-col overflow-x-hidden overscroll-none">
         {children}

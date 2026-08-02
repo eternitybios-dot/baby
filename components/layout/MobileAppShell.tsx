@@ -17,6 +17,7 @@ import {
   useAppData,
 } from "@/components/providers/AppDataProvider";
 import type { CareRecord, QuickRecordAction } from "@/types/domain";
+import { cn } from "@/lib/utils";
 
 type OpenQuickRecord = (action?: QuickRecordAction) => void;
 
@@ -60,12 +61,25 @@ function AppShellContent({ children }: { children: ReactNode }) {
     );
   }
 
+  const overlayOpen = sheetOpen || detailRecord != null;
+
   return (
     <QuickRecordContext.Provider value={openSheet}>
       <RecordDetailContext.Provider value={setDetailRecord}>
         <ActivityNotificationWatcher />
         <div className="min-h-dvh bg-background">
-          <div className="app-max-width relative min-h-dvh bg-background">
+          {/*
+            Drawer の Backdrop が iOS PWA で効かないことがあるため、
+            背面コンテンツ側に blur/dim をかけて確実にぼかす。
+            シート本体は Portal で body 直下に出るのでぼけない。
+          */}
+          <div
+            className={cn(
+              "app-max-width relative min-h-dvh bg-background transition-[filter,opacity] duration-300",
+              overlayOpen && "pointer-events-none opacity-60 blur-sm",
+            )}
+            aria-hidden={overlayOpen || undefined}
+          >
             <div
               className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(ellipse_at_top,_rgb(212_165_165_/_0.28),_transparent_70%)]"
               aria-hidden
@@ -74,25 +88,26 @@ function AppShellContent({ children }: { children: ReactNode }) {
               {children}
             </main>
             <BottomNavigation onRecordPress={() => openSheet()} />
-            {sheetOpen ? (
-              <QuickRecordSheet
-                key={initialAction ?? "menu"}
-                open={sheetOpen}
-                onOpenChange={setSheetOpen}
-                initialAction={initialAction}
-              />
-            ) : null}
-            <RecordDetailSheet
-              record={detailRecord}
-              onClose={() => setDetailRecord(null)}
-            />
-            <Toaster
-              position="top-center"
-              richColors
-              closeButton
-              toastOptions={{ className: "font-sans" }}
-            />
           </div>
+
+          {sheetOpen ? (
+            <QuickRecordSheet
+              key={initialAction ?? "menu"}
+              open={sheetOpen}
+              onOpenChange={setSheetOpen}
+              initialAction={initialAction}
+            />
+          ) : null}
+          <RecordDetailSheet
+            record={detailRecord}
+            onClose={() => setDetailRecord(null)}
+          />
+          <Toaster
+            position="top-center"
+            richColors
+            closeButton
+            toastOptions={{ className: "font-sans" }}
+          />
         </div>
       </RecordDetailContext.Provider>
     </QuickRecordContext.Provider>

@@ -110,7 +110,7 @@ export async function ensureServiceWorker(): Promise<ServiceWorkerRegistration |
       try {
         const base = getAppBasePath();
         const reg = await navigator.serviceWorker.register(
-          `${base}/sw.js?v=20260802-backdrop-light`,
+          `${base}/sw.js?v=20260802-vapid`,
           {
             scope: `${base}/`,
             updateViaCache: "none",
@@ -151,7 +151,7 @@ async function subscribePush(
     return {
       sub: null,
       reason:
-        "通知用の公開鍵が設定されていません。管理者に NEXT_PUBLIC_VAPID_PUBLIC_KEY の設定を依頼してください",
+        "通知用の公開鍵がありません。アプリを最新版に更新するか、管理者に設定を依頼してください",
     };
   }
   if (!("PushManager" in window)) {
@@ -212,7 +212,7 @@ export async function savePushSubscription(
     return {
       ok: false,
       reason:
-        "通知用の公開鍵が設定されていません。管理者に NEXT_PUBLIC_VAPID_PUBLIC_KEY の設定を依頼してください",
+        "通知用の公開鍵がありません。アプリを最新版に更新するか、管理者に設定を依頼してください",
     };
   }
 

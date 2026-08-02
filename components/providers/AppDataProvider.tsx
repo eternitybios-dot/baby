@@ -21,7 +21,6 @@ import {
 } from "@/lib/data/app-state";
 import {
   chartPeriodRange,
-  compareCareRecordsDesc,
   computeCharts,
   computeHomeStatus,
   computeTodaySummary,
@@ -36,6 +35,7 @@ import {
   fetchCareRecordsInRange,
   fetchCareRecordsPage,
   fetchFamilyBundle,
+  HOME_CARE_RECORDS_LIMIT,
   insertCareRecordRemote,
   insertConcernRemote,
   insertGrowthRemote,
@@ -52,6 +52,7 @@ import {
   updateHabitRemote,
   updateProfileName,
 } from "@/lib/data/remote";
+import { reconcileCareRecordsList } from "@/lib/data/records-list";
 import {
   resolveSupabaseConfig,
   saveStoredSupabaseConfig,
@@ -310,20 +311,22 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setBootPhase("ready");
     setBootError(null);
 
-    // 家族切替時は一覧・既知状態をリセット
+    // 家族切替時は一覧を置換。同一家族の再取得では削除済み ID も落とす
     if (previousFamilyId && previousFamilyId !== nextFamilyId) {
       setRecordsList(bundle.records);
-      setHasMoreRecords(bundle.records.length >= CARE_RECORDS_PAGE_SIZE);
+      setHasMoreRecords(bundle.records.length >= HOME_CARE_RECORDS_LIMIT);
     } else if (recordsListRef.current.length === 0) {
       setRecordsList(bundle.records);
-      setHasMoreRecords(bundle.records.length >= CARE_RECORDS_PAGE_SIZE);
+      setHasMoreRecords(bundle.records.length >= HOME_CARE_RECORDS_LIMIT);
     } else {
-      // ホーム recent と一覧の先頭をマージ（新しい記録を反映）
-      setRecordsList((prev) => {
-        const byId = new Map(prev.map((r) => [r.id, r]));
-        for (const r of bundle.records) byId.set(r.id, r);
-        return [...byId.values()].sort(compareCareRecordsDesc);
-      });
+      setRecordsList((prev) =>
+        reconcileCareRecordsList(
+          prev,
+          bundle.records,
+          HOME_CARE_RECORDS_LIMIT,
+        ),
+      );
+      setHasMoreRecords(bundle.records.length >= HOME_CARE_RECORDS_LIMIT);
     }
 
     void loadChartRecords(chartPeriodRef.current);

@@ -32,7 +32,7 @@ https://eternitybios-dot.github.io/baby/home/
 
 ## GitHub Pages
 
-`gh-pages` ブランチ、または Actions（`.github/workflows/deploy-pages.yml`）でデプロイできます。
+Actions（`.github/workflows/deploy-pages.yml`）が `main` への push で静的サイトをビルドし、`gh-pages` ブランチへ公開します。
 
 任意で Secrets（公開値のみ）:
 
@@ -40,7 +40,8 @@ https://eternitybios-dot.github.io/baby/home/
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
 
-通知・セキュリティ: [docs/PUSH_SETUP.md](docs/PUSH_SETUP.md) / [docs/MANUAL_VERIFICATION.md](docs/MANUAL_VERIFICATION.md)
+運用（VAPID ローテーション / 004 確認）: [docs/OPS_CHECKLIST.md](docs/OPS_CHECKLIST.md)  
+通知・手動検証: [docs/PUSH_SETUP.md](docs/PUSH_SETUP.md) / [docs/MANUAL_VERIFICATION.md](docs/MANUAL_VERIFICATION.md)
 
 ## ローカル
 

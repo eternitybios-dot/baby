@@ -113,7 +113,7 @@ export async function ensureServiceWorker(): Promise<ServiceWorkerRegistration |
       try {
         const base = getAppBasePath();
         const reg = await navigator.serviceWorker.register(
-          `${base}/sw.js?v=20260802c-vapid-match`,
+          `${base}/sw.js?v=20260802d-test-notify`,
           {
             scope: `${base}/`,
             updateViaCache: "none",
@@ -166,6 +166,12 @@ function clearUsedVapidKeyId(): void {
   }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 async function subscribePush(
   registration: ServiceWorkerRegistration,
 ): Promise<{ sub: PushSubscription | null; reason?: string }> {
@@ -196,14 +202,38 @@ async function subscribePush(
       } catch {
         /* ignore */
       }
+      // iOS は unsubscribe 直後の subscribe が失敗しやすい
+      await sleep(400);
     }
 
-    const sub = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(
-        getVapidPublicKey(),
-      ) as BufferSource,
-    });
+    const applicationServerKey = urlBase64ToUint8Array(
+      getVapidPublicKey(),
+    ) as BufferSource;
+
+    let sub: PushSubscription | null = null;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        sub = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey,
+        });
+        break;
+      } catch (error) {
+        lastError = error;
+        await sleep(500);
+      }
+    }
+    if (!sub) {
+      clearUsedVapidKeyId();
+      return {
+        sub: null,
+        reason:
+          lastError instanceof Error && /denied|permission/i.test(lastError.message)
+            ? "通知が許可されていません。iPhoneの設定 → 通知 から許可してください"
+            : "Push 購読に失敗しました。ホーム画面アイコンから開き、iOS 16.4以降か確認してください",
+      };
+    }
     setUsedVapidKeyId(VAPID_PUBLIC_KEY_ID);
     return { sub };
   } catch {
@@ -342,6 +372,13 @@ export async function enableNotifications(input?: {
 
   if (!input?.supabase || !input.familyId || !input.userId) {
     setPushRegisteredPref(false);
+    await showOsNotification({
+      title: "すくすくログ",
+      body: "端末の通知許可はOKです（相手への配信設定は未完了）",
+      tag: "sukusuku-test",
+      href: appPath("/home"),
+      force: true,
+    });
     return {
       ok: false,
       permissionGranted: true,
@@ -363,6 +400,7 @@ export async function enableNotifications(input?: {
       body: "端末の通知許可はOKです（相手への配信設定は未完了）",
       tag: "sukusuku-test",
       href: appPath("/home"),
+      force: true,
     });
     return {
       ok: false,
@@ -374,17 +412,20 @@ export async function enableNotifications(input?: {
     };
   }
 
-  await showOsNotification({
+  const shown = await showOsNotification({
     title: "すくすくログ",
     body: "通知がオンになりました",
     tag: "sukusuku-test",
     href: appPath("/home"),
+    force: true,
   });
   return {
     ok: true,
     permissionGranted: true,
     pushRegistered: true,
-    detail: "通知オン。テスト通知を送りました",
+    detail: shown
+      ? "通知オン。テスト通知を送りました（バナーが出ないときは一度ホーム画面へ戻ってみてください）"
+      : "通知オン。テスト通知の表示に失敗しました。iPhoneの設定 → 通知 で許可を確認してください",
   };
 }
 
@@ -443,37 +484,48 @@ export async function showOsNotification(input: {
   body: string;
   tag: string;
   href: string;
-}): Promise<void> {
-  if (!getNotificationPref()) return;
-  if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
+  /** true のとき通知設定オフでも表示を試みる（テスト通知用） */
+  force?: boolean;
+}): Promise<boolean> {
+  if (!input.force && !getNotificationPref()) return false;
+  if (typeof window === "undefined" || !("Notification" in window)) return false;
+  if (Notification.permission !== "granted") return false;
 
   const registration = await ensureServiceWorker();
   const href = input.href;
+  const options: NotificationOptions = {
+    body: input.body,
+    tag: input.tag,
+    data: { url: href },
+    lang: "ja",
+  };
 
+  // iOS PWA: postMessage だけだと届かないことがあるため、
+  // registration.showNotification を先に await する
   if (registration) {
+    try {
+      await navigator.serviceWorker.ready;
+      await registration.showNotification(input.title, options);
+      return true;
+    } catch {
+      /* fall through */
+    }
+
     const worker =
       registration.active ?? registration.waiting ?? registration.installing;
     if (worker) {
-      worker.postMessage({
-        type: "SHOW_NOTIFICATION",
-        title: input.title,
-        body: input.body,
-        tag: input.tag,
-        url: href,
-      });
-      return;
-    }
-    try {
-      await registration.showNotification(input.title, {
-        body: input.body,
-        tag: input.tag,
-        data: { url: href },
-        lang: "ja",
-      });
-      return;
-    } catch {
-      /* fall through */
+      try {
+        worker.postMessage({
+          type: "SHOW_NOTIFICATION",
+          title: input.title,
+          body: input.body,
+          tag: input.tag,
+          url: href,
+        });
+        return true;
+      } catch {
+        /* fall through */
+      }
     }
   }
 
@@ -488,9 +540,47 @@ export async function showOsNotification(input: {
       n.close();
       window.location.assign(href);
     };
+    return true;
   } catch {
-    /* ignore */
+    return false;
   }
+}
+
+/** 設定画面などから明示的にテスト通知を出す */
+export async function sendTestOsNotification(): Promise<{
+  ok: boolean;
+  detail: string;
+}> {
+  if (!isNotificationSupported()) {
+    return {
+      ok: false,
+      detail:
+        "このブラウザは通知に対応していません。ホーム画面に追加したアプリから開いてください",
+    };
+  }
+  const permission = await ensureNotificationPermission();
+  if (permission !== "granted") {
+    return {
+      ok: false,
+      detail:
+        permission === "denied"
+          ? "通知が拒否されています。iPhoneの設定 → 通知 から許可してください"
+          : "通知が許可されませんでした。ホーム画面アプリから開き直してください",
+    };
+  }
+  const shown = await showOsNotification({
+    title: "すくすくログ",
+    body: "テスト通知です",
+    tag: "sukusuku-test",
+    href: appPath("/home"),
+    force: true,
+  });
+  return {
+    ok: shown,
+    detail: shown
+      ? "テスト通知を送りました。バナーが出ないときは一度ホーム画面へ戻ってみてください"
+      : "テスト通知を表示できませんでした。ホーム画面アイコンから開き直してください",
+  };
 }
 
 async function readFunctionsErrorDetail(error: unknown): Promise<string> {

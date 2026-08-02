@@ -121,8 +121,7 @@ export function SettingsScreen() {
             </button>
             {notifyPermissionGranted && !pushRegistered ? (
               <p className="text-xs text-destructive">
-                端末通知は許可されましたが、相手からの通知設定は未完了です。もう一度「通知をオン」を試すか、SQL
-                003 / VAPID 公開鍵の設定を確認してください。
+                端末の通知許可はできていますが、相手への配信設定がまだ完了していません。もう一度「通知をオン」を試すか、ホーム画面アイコンから開き直してください。直らない場合は管理者に通知サーバー設定を依頼してください。
               </p>
             ) : null}
             {notifyPermission === "denied" ? (

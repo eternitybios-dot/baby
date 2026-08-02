@@ -1,5 +1,5 @@
 /* すくすくログ Service Worker — iOS PWA 通知 + キャッシュ更新 */
-const SW_VERSION = "2026-08-02-drawer-backdrop";
+const SW_VERSION = "2026-08-02-drawer-backdrop-light";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();

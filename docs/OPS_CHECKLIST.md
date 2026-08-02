@@ -18,17 +18,20 @@ https://eternitybios-dot.github.io/baby/home/ が更新されること。
 
 ## 2. VAPID 鍵（通知を動かすために必須）
 
-公開鍵はアプリ側にフォールバック埋め込み済みです。  
-**秘密鍵は Supabase（と GitHub）にだけ**置いてください。混ぜないこと。
+**公開鍵と秘密鍵は必ず同じペア。** 混ぜると送信がすべて失敗します。
 
-### 今回の鍵ペア（2026-08-02 生成）
+### 現在の本番ペア（Edge に設定済み・クライアントもこれに合わせる）
 
 - **Public**  
-  `BGKEzBYqf0jTJPjqLSwhbldauPEKJo84WflF6c4bxtPpyCaTZbFRUjRZR6NF6MKMvQWxk8dmL87Pa9J8KtpK9zA`
+  `BOGThgT-ThjwFpMvvfWN9_pfqLKfZo-f5w9A55bPRYTCaQVnJO9pDwMog1yz_9jYhUPIbeH-USlpYmlMEOnH8zk`
 - **Private**  
-  `MrjT_n_3-Aq7o83qoeDGmOEihlBzei-KRaBLubOrkmQ`
+  `KZAhV4989qRnmm87TVvnlFaD2mAtk_bX-1F-cn2aL3s`
 - **Subject**  
   `mailto:eternitybios@gmail.com`
+
+※ 2026-08-02 に別ペアへ回転しようとしましたが、Edge Secrets 更新ができず
+クライアントだけ新公開鍵になり **鍵不一致で送信失敗** していました。  
+アプリ側は上記の Edge 一致ペアに戻しています。
 
 ※ Private は Issue / PR コメントに再投稿しないでください。漏れたら `npx web-push generate-vapid-keys` で作り直す。
 
@@ -38,7 +41,7 @@ https://eternitybios-dot.github.io/baby/home/ が更新されること。
 
 | Name | Value |
 |------|-------|
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | 上記 Public |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | 上記 Public（または空のまま＝アプリ埋め込みを使う） |
 | `VAPID_PUBLIC_KEY` | 上記 Public |
 | `VAPID_PRIVATE_KEY` | 上記 Private |
 | `VAPID_SUBJECT` | `mailto:eternitybios@gmail.com` |
@@ -55,16 +58,18 @@ Dashboard → Project → **Edge Functions → Secrets**（または Project Set
 | `VAPID_PRIVATE_KEY` | 上記 Private |
 | `VAPID_SUBJECT` | `mailto:eternitybios@gmail.com` |
 
+Project Ref: `rgukivjlxvsddzbkkpyj`
+
 ### C. Edge Function 再デプロイ
 
 GitHub Actions → **Deploy notify-family** → Run workflow  
-（`project_ref` は `https://＜これ＞.supabase.co` の真ん中）
+`project_ref` = `rgukivjlxvsddzbkkpyj`
 
 またはローカル:
 
 ```bash
 SUPABASE_ACCESS_TOKEN=sbp_xxx \
-SUPABASE_PROJECT_REF=xxxx \
+SUPABASE_PROJECT_REF=rgukivjlxvsddzbkkpyj \
 VAPID_PUBLIC_KEY='（Public）' \
 VAPID_PRIVATE_KEY='（Private）' \
 VAPID_SUBJECT='mailto:eternitybios@gmail.com' \
@@ -90,3 +95,4 @@ npm run deploy:notify-family
 - 公開鍵だけ新しくして秘密鍵が古い → 必ず同じペア
 - 003 未実行 → 購読保存に失敗する
 - 片方だけ通知オン → オンにした側にしか届かない
+- 「相手への通知を送れませんでした（0/1）」→ 鍵不一致か相手の購読無効。両端末で開き直し＋通知オフ→オン

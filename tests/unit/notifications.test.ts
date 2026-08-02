@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/push/vapid-public", () => ({
-  getVapidPublicKey: () => "test-public-key",
+  // urlBase64ToUint8Array が通るダミー公開鍵
+  getVapidPublicKey: () =>
+    "BPzsQN4E9-LaOTrrRLBtMNVuPA0QIiIhQO_oIN6fh6w9bXnkiamNwxWFc5MsgIsw10_FqYSicNL6j_VgdhvSwPo",
   hasVapidPublicKey: () => true,
-  VAPID_PUBLIC_KEY: "test-public-key",
+  VAPID_PUBLIC_KEY:
+    "BPzsQN4E9-LaOTrrRLBtMNVuPA0QIiIhQO_oIN6fh6w9bXnkiamNwxWFc5MsgIsw10_FqYSicNL6j_VgdhvSwPo",
+  VAPID_PUBLIC_KEY_ID: "test-key-id",
 }));
 
 describe("通知購読保存失敗時の結果", () => {
@@ -53,6 +57,9 @@ describe("通知購読保存失敗時の結果", () => {
       },
       setItem(key: string, value: string) {
         this.store[key] = value;
+      },
+      removeItem(key: string) {
+        delete this.store[key];
       },
     };
     const windowMock = {
@@ -183,5 +190,42 @@ describe("notifyFamilyPush の error 確認", () => {
     );
 
     expect(result.ok).toBe(false);
+  });
+
+  it("vapid_mismatch のとき再購読を促すメッセージにする", async () => {
+    vi.resetModules();
+    const { notifyFamilyPush } = await import("@/lib/notifications");
+    const supabase = {
+      functions: {
+        invoke: vi.fn(async () => ({
+          data: {
+            ok: false,
+            status: "failed",
+            sent: 0,
+            total: 1,
+            failureCode: "vapid_mismatch",
+            detail: "Received unexpected response code",
+          },
+          error: null,
+        })),
+      },
+    };
+
+    const result = await notifyFamilyPush(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase as any,
+      {
+        familyId: "fam",
+        title: "t",
+        body: "b",
+        url: "/home/",
+        excludeUserId: "u1",
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/鍵が一致|オフ→オン|開き直/);
+    }
   });
 });

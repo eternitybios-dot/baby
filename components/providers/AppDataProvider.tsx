@@ -476,7 +476,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         if (!result.ok) {
           toast.message("記録は保存しました", {
             description:
-              result.error || "相手への通知だけ送れませんでした",
+              result.error ||
+              "相手への通知だけ送れませんでした。夫婦どちらもホーム画面アプリから開き直してください",
           });
         }
       });

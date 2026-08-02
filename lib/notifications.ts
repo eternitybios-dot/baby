@@ -6,10 +6,13 @@ import { timelinePrimaryText } from "@/lib/format";
 import {
   getVapidPublicKey,
   hasVapidPublicKey,
+  VAPID_PUBLIC_KEY_ID,
 } from "@/lib/push/vapid-public";
 
 const NOTIFY_PREF_KEY = "sukusuku-notify-enabled";
 const PUSH_REGISTERED_KEY = "sukusuku-push-registered";
+/** 最後に購読した VAPID 公開鍵の ID。変わったら購読を作り直す */
+const VAPID_USED_KEY = "sukusuku-vapid-public-used";
 const localCreatedIds = new Set<string>();
 
 let swReady: Promise<ServiceWorkerRegistration | null> | null = null;
@@ -110,7 +113,7 @@ export async function ensureServiceWorker(): Promise<ServiceWorkerRegistration |
       try {
         const base = getAppBasePath();
         const reg = await navigator.serviceWorker.register(
-          `${base}/sw.js?v=20260802b-baby-icon`,
+          `${base}/sw.js?v=20260802c-vapid-match`,
           {
             scope: `${base}/`,
             updateViaCache: "none",
@@ -144,6 +147,25 @@ export async function ensureNotificationPermission(): Promise<NotificationPermis
   return Notification.requestPermission();
 }
 
+function getUsedVapidKeyId(): string {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(VAPID_USED_KEY) ?? "";
+}
+
+function setUsedVapidKeyId(id: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(VAPID_USED_KEY, id);
+}
+
+function clearUsedVapidKeyId(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(VAPID_USED_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 async function subscribePush(
   registration: ServiceWorkerRegistration,
 ): Promise<{ sub: PushSubscription | null; reason?: string }> {
@@ -163,15 +185,29 @@ async function subscribePush(
   }
   try {
     const existing = await registration.pushManager.getSubscription();
-    if (existing) return { sub: existing };
+    const keyStillValid = getUsedVapidKeyId() === VAPID_PUBLIC_KEY_ID;
+    if (existing && keyStillValid) return { sub: existing };
+
+    // VAPID 鍵が変わった／未記録のときは古い購読を破棄して作り直す
+    // （公開鍵と Edge 秘密鍵の不一致だと相手通知がすべて失敗する）
+    if (existing) {
+      try {
+        await existing.unsubscribe();
+      } catch {
+        /* ignore */
+      }
+    }
+
     const sub = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(
         getVapidPublicKey(),
       ) as BufferSource,
     });
+    setUsedVapidKeyId(VAPID_PUBLIC_KEY_ID);
     return { sub };
   } catch {
+    clearUsedVapidKeyId();
     return {
       sub: null,
       reason:
@@ -357,6 +393,7 @@ export async function disableNotifications(
 ): Promise<void> {
   setNotificationPref(false);
   setPushRegisteredPref(false);
+  clearUsedVapidKeyId();
   try {
     const registration = await ensureServiceWorker();
     const existing = registration
@@ -374,6 +411,31 @@ export async function disableNotifications(
   } catch {
     /* ignore */
   }
+}
+
+function mapPushFailureMessage(raw: string): string {
+  const text = raw.trim();
+  const lower = text.toLowerCase();
+  if (
+    lower.includes("vapid keys not configured") ||
+    (lower.includes("vapid") && lower.includes("not configured"))
+  ) {
+    return "通知サーバーの鍵が未設定です。管理者に Edge Function の VAPID 設定を依頼してください";
+  }
+  if (
+    lower.includes("unauthorized") ||
+    lower.includes("forbidden") ||
+    lower.includes("jwt")
+  ) {
+    return "通知サーバーへの認証に失敗しました。アプリを開き直してから再度お試しください";
+  }
+  if (lower.includes("failed to send a request to the edge function")) {
+    return "通知サーバーに接続できませんでした。通信環境を確認して再度お試しください";
+  }
+  if (lower.includes("edge function") && lower.includes("non-2xx")) {
+    return "通知サーバーでエラーが発生しました。夫婦どちらもホーム画面アプリから開き直し、設定で通知をいったんオフ→オンしてください";
+  }
+  return text || "相手への通知送信に失敗しました";
 }
 
 export async function showOsNotification(input: {
@@ -431,6 +493,26 @@ export async function showOsNotification(input: {
   }
 }
 
+async function readFunctionsErrorDetail(error: unknown): Promise<string> {
+  if (!error || typeof error !== "object") return "";
+  const withMessage = error as {
+    message?: string;
+    context?: { json?: () => Promise<unknown> };
+  };
+  const base = typeof withMessage.message === "string" ? withMessage.message : "";
+  const context = withMessage.context;
+  if (context && typeof context.json === "function") {
+    try {
+      const body = (await context.json()) as { error?: string; detail?: string };
+      if (body?.error) return String(body.error);
+      if (body?.detail) return String(body.detail);
+    } catch {
+      /* ignore */
+    }
+  }
+  return base;
+}
+
 export async function notifyFamilyPush(
   supabase: SupabaseClient,
   input: {
@@ -452,9 +534,12 @@ export async function notifyFamilyPush(
       },
     });
     if (error) {
+      const detail = await readFunctionsErrorDetail(error);
       return {
         ok: false,
-        error: error.message || "相手への通知送信に失敗しました",
+        error: mapPushFailureMessage(
+          detail || error.message || "相手への通知送信に失敗しました",
+        ),
       };
     }
     const payload = data as {
@@ -463,9 +548,14 @@ export async function notifyFamilyPush(
       total?: number;
       status?: string;
       error?: string;
+      detail?: string;
+      failureCode?: string;
     } | null;
     if (payload?.error) {
-      return { ok: false, error: String(payload.error) };
+      return {
+        ok: false,
+        error: mapPushFailureMessage(String(payload.error)),
+      };
     }
     const sent = Number(payload?.sent ?? 0);
     const total = Number(payload?.total ?? 0);
@@ -476,17 +566,33 @@ export async function notifyFamilyPush(
         status === "partial" || (sent > 0 && sent < total)
           ? "partial"
           : "failed";
+      const failureCode = String(payload?.failureCode ?? "");
+      const detail = String(payload?.detail ?? "");
+      let errorText =
+        kind === "partial"
+          ? `相手への通知が一部失敗しました（${sent}/${total}）`
+          : total > 0
+            ? `相手への通知を送れませんでした（0/${total}）`
+            : "相手への通知送信に失敗しました";
+      if (
+        failureCode === "vapid_mismatch" ||
+        /403|unauthorized|invalid.*vapid|vapid/i.test(detail)
+      ) {
+        errorText =
+          "通知の鍵が一致しません。夫婦どちらもホーム画面アプリから開き直し、設定で通知をいったんオフ→オンしてください";
+      } else if (failureCode === "gone" || /410|404/.test(detail)) {
+        errorText =
+          "相手の通知登録が無効です。相手の端末でアプリを開き直し、設定で通知をオンにしてください";
+      } else if (kind === "failed" && total > 0) {
+        errorText =
+          "相手への通知を送れませんでした。夫婦どちらもホーム画面アプリから開き直し、設定で通知をオンにしてください";
+      }
       return {
         ok: false,
         status: kind,
         sent,
         total,
-        error:
-          kind === "partial"
-            ? `相手への通知が一部失敗しました（${sent}/${total}）`
-            : total > 0
-              ? `相手への通知を送れませんでした（0/${total}）`
-              : "相手への通知送信に失敗しました",
+        error: errorText,
       };
     }
     return {
@@ -498,10 +604,11 @@ export async function notifyFamilyPush(
   } catch (error) {
     return {
       ok: false,
-      error:
+      error: mapPushFailureMessage(
         error instanceof Error
           ? error.message
           : "相手への通知送信に失敗しました",
+      ),
     };
   }
 }

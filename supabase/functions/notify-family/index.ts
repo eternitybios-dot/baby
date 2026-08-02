@@ -18,15 +18,42 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+function getErrorStatus(error: unknown): number {
+  if (!error || typeof error !== "object") return NaN;
+  if ("statusCode" in error) return Number(error.statusCode);
+  if ("status" in error) return Number(error.status);
+  return NaN;
+}
+
 function isGoneStatus(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const status =
-    "statusCode" in error
-      ? Number(error.statusCode)
-      : "status" in error
-        ? Number(error.status)
-        : NaN;
+  const status = getErrorStatus(error);
   return status === 404 || status === 410;
+}
+
+function classifyPushFailure(error: unknown): {
+  code: string;
+  detail: string;
+} {
+  const status = getErrorStatus(error);
+  const message =
+    error instanceof Error
+      ? error.message
+      : error && typeof error === "object" && "message" in error
+        ? String((error as { message: unknown }).message)
+        : String(error ?? "");
+  if (status === 403 || /vapid|unauthorized|forbidden/i.test(message)) {
+    return {
+      code: "vapid_mismatch",
+      detail: message || `status ${status}`,
+    };
+  }
+  if (status === 404 || status === 410) {
+    return { code: "gone", detail: message || `status ${status}` };
+  }
+  return {
+    code: Number.isFinite(status) ? `http_${status}` : "send_failed",
+    detail: message || "push send failed",
+  };
 }
 
 Deno.serve(async (req) => {
@@ -120,6 +147,8 @@ Deno.serve(async (req) => {
     });
 
     const goneEndpoints: string[] = [];
+    const failureCodes: string[] = [];
+    const failureDetails: string[] = [];
     const results = await Promise.allSettled(
       (subs ?? []).map(async (sub) => {
         try {
@@ -134,6 +163,9 @@ Deno.serve(async (req) => {
           if (isGoneStatus(error)) {
             goneEndpoints.push(sub.endpoint);
           }
+          const classified = classifyPushFailure(error);
+          failureCodes.push(classified.code);
+          failureDetails.push(classified.detail);
           throw error;
         }
       }),
@@ -163,6 +195,12 @@ Deno.serve(async (req) => {
       ok = false;
     }
 
+    const primaryFailureCode =
+      failureCodes.find((code) => code === "vapid_mismatch") ??
+      failureCodes.find((code) => code === "gone") ??
+      failureCodes[0] ??
+      "";
+
     return new Response(
       JSON.stringify({
         ok,
@@ -170,6 +208,8 @@ Deno.serve(async (req) => {
         sent,
         total,
         pruned: goneEndpoints.length,
+        failureCode: primaryFailureCode || undefined,
+        detail: failureDetails[0] || undefined,
       }),
       {
         // アプリ側で body.ok を見る。HTTP は 2xx のまま（invoke の通信エラーと区別）

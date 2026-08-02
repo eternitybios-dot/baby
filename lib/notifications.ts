@@ -110,7 +110,7 @@ export async function ensureServiceWorker(): Promise<ServiceWorkerRegistration |
       try {
         const base = getAppBasePath();
         const reg = await navigator.serviceWorker.register(
-          `${base}/sw.js?v=20260802-baby-icon`,
+          `${base}/sw.js?v=20260802b-baby-icon`,
           {
             scope: `${base}/`,
             updateViaCache: "none",

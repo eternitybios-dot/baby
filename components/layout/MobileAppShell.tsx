@@ -16,6 +16,7 @@ import {
   AppDataProvider,
   useAppData,
 } from "@/components/providers/AppDataProvider";
+import { useTabSwipeNavigation } from "@/hooks/use-tab-swipe-navigation";
 import type { CareRecord, QuickRecordAction } from "@/types/domain";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +42,8 @@ function AppShellContent({ children }: { children: ReactNode }) {
     null,
   );
   const [detailRecord, setDetailRecord] = useState<CareRecord | null>(null);
+  const overlayOpen = sheetOpen || detailRecord != null;
+  const tabSwipe = useTabSwipeNavigation(ready && !overlayOpen);
 
   const openSheet: OpenQuickRecord = (action) => {
     setInitialAction(action ?? null);
@@ -60,8 +63,6 @@ function AppShellContent({ children }: { children: ReactNode }) {
       </>
     );
   }
-
-  const overlayOpen = sheetOpen || detailRecord != null;
 
   return (
     <QuickRecordContext.Provider value={openSheet}>
@@ -84,7 +85,12 @@ function AppShellContent({ children }: { children: ReactNode }) {
               className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(ellipse_at_top,_rgb(212_165_165_/_0.28),_transparent_70%)]"
               aria-hidden
             />
-            <main className="relative px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <main
+              className="relative touch-pan-y px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]"
+              onPointerDown={tabSwipe.onPointerDown}
+              onPointerUp={tabSwipe.onPointerUp}
+              onPointerCancel={tabSwipe.onPointerCancel}
+            >
               {children}
             </main>
             <BottomNavigation onRecordPress={() => openSheet()} />

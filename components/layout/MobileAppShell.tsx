@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Toaster } from "sonner";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { TabSwipeMain } from "@/components/layout/TabSwipeMain";
 import { FamilyGate } from "@/components/family/FamilyGate";
 import { ActivityNotificationWatcher } from "@/components/notifications/ActivityNotificationWatcher";
 import { QuickRecordSheet } from "@/components/records/QuickRecordSheet";
@@ -16,7 +17,6 @@ import {
   AppDataProvider,
   useAppData,
 } from "@/components/providers/AppDataProvider";
-import { useTabSwipeNavigation } from "@/hooks/use-tab-swipe-navigation";
 import type { CareRecord, QuickRecordAction } from "@/types/domain";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +43,6 @@ function AppShellContent({ children }: { children: ReactNode }) {
   );
   const [detailRecord, setDetailRecord] = useState<CareRecord | null>(null);
   const overlayOpen = sheetOpen || detailRecord != null;
-  const tabSwipe = useTabSwipeNavigation(ready && !overlayOpen);
 
   const openSheet: OpenQuickRecord = (action) => {
     setInitialAction(action ?? null);
@@ -68,7 +67,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
     <QuickRecordContext.Provider value={openSheet}>
       <RecordDetailContext.Provider value={setDetailRecord}>
         <ActivityNotificationWatcher />
-        <div className="min-h-dvh bg-background">
+        <div className="min-h-dvh overflow-x-hidden bg-background">
           {/*
             Drawer の Backdrop が iOS PWA で効かないことがあるため、
             背面コンテンツ側に blur/dim をかけて確実にぼかす。
@@ -76,7 +75,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
           */}
           <div
             className={cn(
-              "app-max-width relative min-h-dvh bg-background transition-[filter,opacity] duration-300",
+              "app-max-width relative min-h-dvh overflow-x-hidden bg-background transition-[filter,opacity] duration-300",
               overlayOpen && "pointer-events-none blur-[2px]",
             )}
             aria-hidden={overlayOpen || undefined}
@@ -85,14 +84,12 @@ function AppShellContent({ children }: { children: ReactNode }) {
               className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(ellipse_at_top,_rgb(212_165_165_/_0.28),_transparent_70%)]"
               aria-hidden
             />
-            <main
-              className="relative touch-pan-y px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]"
-              onPointerDown={tabSwipe.onPointerDown}
-              onPointerUp={tabSwipe.onPointerUp}
-              onPointerCancel={tabSwipe.onPointerCancel}
+            <TabSwipeMain
+              enabled={!overlayOpen}
+              className="px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]"
             >
               {children}
-            </main>
+            </TabSwipeMain>
             <BottomNavigation onRecordPress={() => openSheet()} />
           </div>
 

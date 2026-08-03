@@ -51,6 +51,10 @@ iPhone の通知（ホーム画面アプリ）を使う場合は追加で:
 
 → [005_verify_security_hardening.sql（生テキスト）](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/005_verify_security_hardening.sql)
 
+家族名を作成者以外も変更・消去できるようにする場合:
+
+→ [006_families_update_members.sql（生テキスト）](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/006_families_update_members.sql)
+
 詳しい通知手順: [docs/PUSH_SETUP.md](./PUSH_SETUP.md) / 運用一覧: [docs/OPS_CHECKLIST.md](./OPS_CHECKLIST.md)
 
 ## 4. アプリ側の接続

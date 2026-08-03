@@ -45,9 +45,6 @@ export function SettingsScreen() {
   const [familyNameDraft, setFamilyNameDraft] = useState<string | null>(null);
   const displayName = displayNameDraft ?? currentUser.displayName;
   const familyName = familyNameDraft ?? state.family.familyName;
-  const isOwner =
-    state.family.members.find((m) => m.id === currentUser.id)?.role ===
-    "owner";
   const notifySupported = isNotificationSupported();
   const pushSupported = isPushManagerSupported();
   const notifyPermission = getNotificationPermission();
@@ -176,7 +173,7 @@ export function SettingsScreen() {
               className="h-11 flex-1"
               value={familyName}
               placeholder="未設定"
-              disabled={!isOwner || syncing}
+              disabled={syncing}
               onChange={(e) => setFamilyNameDraft(e.target.value)}
               aria-label="家族の名前"
             />
@@ -184,37 +181,41 @@ export function SettingsScreen() {
               type="button"
               variant="outline"
               className="tap-target h-11 shrink-0"
-              disabled={!isOwner || syncing || !familyName}
+              disabled={syncing || !familyName}
               aria-label="家族の名前を消す"
               onClick={async () => {
-                setFamilyNameDraft("");
-                await updateFamilyName("");
-                setFamilyNameDraft(null);
-                toast.success("家族の名前を消しました");
+                try {
+                  setFamilyNameDraft("");
+                  await updateFamilyName("");
+                  setFamilyNameDraft(null);
+                  toast.success("家族の名前を消しました");
+                } catch {
+                  setFamilyNameDraft(null);
+                }
               }}
             >
               <Eraser className="size-4" />
             </Button>
           </div>
-          {!isOwner ? (
-            <p className="text-[11px] text-muted-foreground">
-              家族名を変えられるのは作成者だけです。
-            </p>
-          ) : familyNameDraft !== null &&
-            familyNameDraft.trim() !== state.family.familyName ? (
+          {familyNameDraft !== null &&
+          familyNameDraft.trim() !== state.family.familyName ? (
             <Button
               type="button"
               variant="outline"
               className="tap-target mt-2 h-11 w-full"
               disabled={syncing}
               onClick={async () => {
-                await updateFamilyName(familyNameDraft);
-                setFamilyNameDraft(null);
-                toast.success(
-                  familyNameDraft.trim()
-                    ? "家族の名前を保存しました"
-                    : "家族の名前を消しました",
-                );
+                try {
+                  await updateFamilyName(familyNameDraft);
+                  setFamilyNameDraft(null);
+                  toast.success(
+                    familyNameDraft.trim()
+                      ? "家族の名前を保存しました"
+                      : "家族の名前を消しました",
+                  );
+                } catch {
+                  /* runRemote 側で toast */
+                }
               }}
             >
               家族の名前を保存
@@ -288,10 +289,14 @@ export function SettingsScreen() {
             disabled={syncing || !displayName}
             aria-label="表示名を消す"
             onClick={async () => {
-              setDisplayNameDraft("");
-              await updateDisplayName("");
-              setDisplayNameDraft(null);
-              toast.success("表示名を消しました");
+              try {
+                setDisplayNameDraft("");
+                await updateDisplayName("");
+                setDisplayNameDraft(null);
+                toast.success("表示名を消しました");
+              } catch {
+                setDisplayNameDraft(null);
+              }
             }}
           >
             <Eraser className="size-4" />
@@ -303,13 +308,17 @@ export function SettingsScreen() {
           className="tap-target h-11 w-full"
           disabled={syncing}
           onClick={async () => {
-            await updateDisplayName(displayName);
-            setDisplayNameDraft(null);
-            toast.success(
-              displayName.trim()
-                ? "表示名を保存しました"
-                : "表示名を消しました",
-            );
+            try {
+              await updateDisplayName(displayName);
+              setDisplayNameDraft(null);
+              toast.success(
+                displayName.trim()
+                  ? "表示名を保存しました"
+                  : "表示名を消しました",
+              );
+            } catch {
+              /* runRemote 側で toast */
+            }
           }}
         >
           表示名を保存

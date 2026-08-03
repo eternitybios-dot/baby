@@ -160,7 +160,7 @@ interface AppDataContextValue {
   deleteGrowth: (id: string) => void;
   addConcern: (input: Omit<Concern, "id" | "recorder">) => void;
   updateConcern: (id: string, patch: Partial<Concern>) => void;
-  deleteConcern: (id: string) => void;
+  deleteConcern: (id: string) => Promise<void>;
   addHabit: (input: Omit<Habit, "id">) => void;
   updateHabit: (id: string, patch: Partial<Habit>) => void;
   deleteHabit: (id: string) => void;
@@ -534,7 +534,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const supabase = supabaseRef.current;
     if (!supabase) {
       toast.error("サーバーに接続されていません");
-      return;
+      throw new Error("サーバーに接続されていません");
     }
     setSyncing(true);
     try {
@@ -546,6 +546,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       } catch {
         /* ignore */
       }
+      throw error;
     } finally {
       setSyncing(false);
     }
@@ -631,13 +632,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       },
       updateFamilyName: async (familyName) => {
         const name = familyName.trim();
-        const me = stateRef.current.family.members.find(
-          (m) => m.id === userIdRef.current,
-        );
-        if (me?.role !== "owner") {
-          toast.error("家族名を変更できるのは作成者だけです");
-          return;
-        }
         applyState({
           ...stateRef.current,
           family: {
@@ -992,12 +986,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           await updateConcernRemote(supabaseRef.current!, id, concernPatch);
         });
       },
-      deleteConcern: (id) => {
+      deleteConcern: async (id) => {
         applyState({
           ...stateRef.current,
           concerns: stateRef.current.concerns.filter((c) => c.id !== id),
         });
-        void runRemote(async () => {
+        await runRemote(async () => {
           await softDeleteConcern(supabaseRef.current!, id);
         });
       },

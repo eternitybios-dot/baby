@@ -88,6 +88,7 @@ npm run deploy:notify-family
 1. [003_push_subscriptions.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/003_push_subscriptions.sql)
 2. [004_security_hardening.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/004_security_hardening.sql)
 3. 確認: [005_verify_security_hardening.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/005_verify_security_hardening.sql)
+4. 家族名を全員が消せるようにする: [006_families_update_members.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/006_families_update_members.sql)
 
 ## 4. よくあるつまずき
 

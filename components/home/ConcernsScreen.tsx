@@ -176,8 +176,14 @@ export function ConcernsScreen() {
                     <AlertDialogCancel>キャンセル</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={() => {
-                        deleteConcern(item.id);
-                        toast.success("削除しました");
+                        void (async () => {
+                          try {
+                            await deleteConcern(item.id);
+                            toast.success("削除しました");
+                          } catch {
+                            /* runRemote 側で toast + 再読込 */
+                          }
+                        })();
                       }}
                     >
                       削除する

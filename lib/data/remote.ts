@@ -462,15 +462,43 @@ export async function updateCareRecordRemote(
   if (error) throw error;
 }
 
+/**
+ * ソフトデリート（deleted_at）を試し、RLS の RETURNING 制限などで
+ * 反映を確認できない／拒否された場合はハードデリートにフォールバックする。
+ */
+async function deleteRowWithFallback(
+  supabase: SupabaseClient,
+  table:
+    | "care_records"
+    | "growth_records"
+    | "concerns"
+    | "habits",
+  id: string,
+): Promise<void> {
+  const deletedAt = new Date().toISOString();
+  const soft = await supabase
+    .from(table)
+    .update({ deleted_at: deletedAt })
+    .eq("id", id)
+    .is("deleted_at", null)
+    .select("id");
+
+  // SELECT ポリシーが deleted_at is null のため、成功しても data が空のことがある
+  if (!soft.error && (soft.data?.length ?? 0) > 0) return;
+
+  const hard = await supabase.from(table).delete().eq("id", id).select("id");
+  if (!hard.error && (hard.data?.length ?? 0) > 0) return;
+
+  if (soft.error) throw soft.error;
+  if (hard.error) throw hard.error;
+  throw new Error("削除できませんでした。権限または対象を確認してください");
+}
+
 export async function softDeleteCareRecord(
   supabase: SupabaseClient,
   id: string,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("care_records")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) throw error;
+  await deleteRowWithFallback(supabase, "care_records", id);
 }
 
 export async function insertGrowthRemote(
@@ -512,11 +540,7 @@ export async function softDeleteGrowth(
   supabase: SupabaseClient,
   id: string,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("growth_records")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) throw error;
+  await deleteRowWithFallback(supabase, "growth_records", id);
 }
 
 export async function insertConcernRemote(
@@ -585,11 +609,14 @@ export async function softDeleteConcern(
   supabase: SupabaseClient,
   id: string,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("concerns")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) throw error;
+  await deleteRowWithFallback(supabase, "concerns", id);
+}
+
+export async function softDeleteHabit(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<void> {
+  await deleteRowWithFallback(supabase, "habits", id);
 }
 
 export async function insertHabitRemote(
@@ -657,17 +684,6 @@ export async function updateHabitRemote(
   if (patch.status !== undefined) payload.status = patch.status;
 
   const { error } = await supabase.from("habits").update(payload).eq("id", id);
-  if (error) throw error;
-}
-
-export async function softDeleteHabit(
-  supabase: SupabaseClient,
-  id: string,
-): Promise<void> {
-  const { error } = await supabase
-    .from("habits")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
   if (error) throw error;
 }
 

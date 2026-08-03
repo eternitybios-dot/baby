@@ -10,21 +10,30 @@ import {
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { MainTabHref } from "@/lib/navigation/main-tabs";
 
 interface BottomNavigationProps {
   onRecordPress: () => void;
 }
 
 /** 中央の大きな記録ボタンを挟む左右タブ（合計5項目） */
-const leftItems = [
+const leftItems: ReadonlyArray<{
+  href: MainTabHref;
+  label: string;
+  icon: typeof Home;
+}> = [
   { href: "/home", label: "ホーム", icon: Home },
   { href: "/calendar", label: "カレンダー", icon: CalendarDays },
-] as const;
+];
 
-const rightItems = [
+const rightItems: ReadonlyArray<{
+  href: MainTabHref;
+  label: string;
+  icon: typeof Home;
+}> = [
   { href: "/charts", label: "グラフ", icon: BarChart3 },
   { href: "/settings", label: "設定", icon: Settings },
-] as const;
+];
 
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);

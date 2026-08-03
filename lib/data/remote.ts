@@ -382,6 +382,21 @@ export async function updateProfileName(
   if (error) throw error;
 }
 
+export async function updateFamilyNameRemote(
+  supabase: SupabaseClient,
+  familyId: string,
+  familyName: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("families")
+    .update({
+      name: familyName,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", familyId);
+  if (error) throw error;
+}
+
 export async function updateBabyRemote(
   supabase: SupabaseClient,
   babyId: string,

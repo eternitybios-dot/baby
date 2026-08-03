@@ -5,6 +5,7 @@ import {
   Baby,
   Bell,
   Copy,
+  Eraser,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,6 +29,7 @@ export function SettingsScreen() {
     syncing,
     updateBaby,
     updateDisplayName,
+    updateFamilyName,
     notifyReady,
     notifyPermissionGranted,
     pushRegistered,
@@ -40,7 +42,12 @@ export function SettingsScreen() {
   const [birthDate, setBirthDate] = useState(baby.birthDate);
   const [memo, setMemo] = useState(baby.memo ?? "");
   const [displayNameDraft, setDisplayNameDraft] = useState<string | null>(null);
+  const [familyNameDraft, setFamilyNameDraft] = useState<string | null>(null);
   const displayName = displayNameDraft ?? currentUser.displayName;
+  const familyName = familyNameDraft ?? state.family.familyName;
+  const isOwner =
+    state.family.members.find((m) => m.id === currentUser.id)?.role ===
+    "owner";
   const notifySupported = isNotificationSupported();
   const pushSupported = isPushManagerSupported();
   const notifyPermission = getNotificationPermission();
@@ -53,6 +60,12 @@ export function SettingsScreen() {
     setNickname(baby.nickname ?? "");
     setBirthDate(baby.birthDate);
     setMemo(baby.memo ?? "");
+  }
+
+  const familyNameKey = state.family.familyName;
+  const [syncedFamilyNameKey, setSyncedFamilyNameKey] = useState(familyNameKey);
+  if (syncedFamilyNameKey !== familyNameKey && familyNameDraft === null) {
+    setSyncedFamilyNameKey(familyNameKey);
   }
 
   return (
@@ -155,8 +168,60 @@ export function SettingsScreen() {
           <Users className="size-4" aria-hidden />
           <h2 className="text-sm font-medium">家族の共有</h2>
         </div>
-        <p className="text-sm font-semibold">{state.family.familyName}</p>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <div className="space-y-1">
+          <Label htmlFor="familyName">家族の名前</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="familyName"
+              className="h-11 flex-1"
+              value={familyName}
+              placeholder="未設定"
+              disabled={!isOwner || syncing}
+              onChange={(e) => setFamilyNameDraft(e.target.value)}
+              aria-label="家族の名前"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="tap-target h-11 shrink-0"
+              disabled={!isOwner || syncing || !familyName}
+              aria-label="家族の名前を消す"
+              onClick={async () => {
+                setFamilyNameDraft("");
+                await updateFamilyName("");
+                setFamilyNameDraft(null);
+                toast.success("家族の名前を消しました");
+              }}
+            >
+              <Eraser className="size-4" />
+            </Button>
+          </div>
+          {!isOwner ? (
+            <p className="text-[11px] text-muted-foreground">
+              家族名を変えられるのは作成者だけです。
+            </p>
+          ) : familyNameDraft !== null &&
+            familyNameDraft.trim() !== state.family.familyName ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="tap-target mt-2 h-11 w-full"
+              disabled={syncing}
+              onClick={async () => {
+                await updateFamilyName(familyNameDraft);
+                setFamilyNameDraft(null);
+                toast.success(
+                  familyNameDraft.trim()
+                    ? "家族の名前を保存しました"
+                    : "家族の名前を消しました",
+                );
+              }}
+            >
+              家族の名前を保存
+            </Button>
+          ) : null}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
           相手の端末でも同じ招待コードで参加すると、記録がサーバー経由で共有されます。
         </p>
         <div className="mt-3 flex items-center gap-2">
@@ -185,9 +250,14 @@ export function SettingsScreen() {
         </div>
         <ul className="mt-3 space-y-1 text-sm">
           {state.family.members.map((member) => (
-            <li key={member.id} className="flex items-center justify-between">
-              <span>{member.displayName}</span>
-              <span className="text-xs text-muted-foreground">
+            <li
+              key={member.id}
+              className="flex items-center justify-between gap-2"
+            >
+              <span className="min-w-0 truncate">
+                {member.displayName || "（名前なし）"}
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground">
                 {member.id === currentUser.id
                   ? "この端末"
                   : member.role === "owner"
@@ -203,12 +273,30 @@ export function SettingsScreen() {
         <h2 className="text-sm font-medium text-muted-foreground">
           あなたの表示名
         </h2>
-        <Input
-          className="h-11"
-          value={displayName}
-          onChange={(e) => setDisplayNameDraft(e.target.value)}
-          aria-label="表示名"
-        />
+        <div className="flex items-center gap-2">
+          <Input
+            className="h-11 flex-1"
+            value={displayName}
+            placeholder="未設定"
+            onChange={(e) => setDisplayNameDraft(e.target.value)}
+            aria-label="表示名"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="tap-target h-11 shrink-0"
+            disabled={syncing || !displayName}
+            aria-label="表示名を消す"
+            onClick={async () => {
+              setDisplayNameDraft("");
+              await updateDisplayName("");
+              setDisplayNameDraft(null);
+              toast.success("表示名を消しました");
+            }}
+          >
+            <Eraser className="size-4" />
+          </Button>
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -217,6 +305,11 @@ export function SettingsScreen() {
           onClick={async () => {
             await updateDisplayName(displayName);
             setDisplayNameDraft(null);
+            toast.success(
+              displayName.trim()
+                ? "表示名を保存しました"
+                : "表示名を消しました",
+            );
           }}
         >
           表示名を保存

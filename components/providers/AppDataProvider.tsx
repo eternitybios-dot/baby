@@ -49,6 +49,7 @@ import {
   updateBabyRemote,
   updateCareRecordRemote,
   updateConcernRemote,
+  updateFamilyNameRemote,
   updateHabitRemote,
   updateProfileName,
 } from "@/lib/data/remote";
@@ -146,6 +147,7 @@ interface AppDataContextValue {
   loadMoreRecords: () => Promise<void>;
   setCurrentUser: (userId: string) => void;
   updateDisplayName: (displayName: string) => Promise<void>;
+  updateFamilyName: (familyName: string) => Promise<void>;
   updateBaby: (patch: Partial<Baby>) => void;
   addCareRecord: (input: CreateCareInput) => CareRecord;
   updateCareRecord: (id: string, patch: Partial<CareRecord>) => void;
@@ -613,10 +615,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       },
       updateDisplayName: async (displayName) => {
         const name = displayName.trim();
-        if (!name) {
-          toast.error("表示名を入力してください");
-          return;
-        }
         const userId = userIdRef.current;
         applyState({
           ...stateRef.current,
@@ -629,6 +627,36 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         });
         await runRemote(async () => {
           await updateProfileName(supabaseRef.current!, userId, name);
+        });
+      },
+      updateFamilyName: async (familyName) => {
+        const name = familyName.trim();
+        const me = stateRef.current.family.members.find(
+          (m) => m.id === userIdRef.current,
+        );
+        if (me?.role !== "owner") {
+          toast.error("家族名を変更できるのは作成者だけです");
+          return;
+        }
+        applyState({
+          ...stateRef.current,
+          family: {
+            ...stateRef.current.family,
+            familyName: name,
+          },
+        });
+        await runRemote(async () => {
+          const familyId =
+            stateRef.current.family.familyId ||
+            stateRef.current.baby.familyId;
+          if (!familyId) {
+            throw new Error("家族情報を確認できません");
+          }
+          await updateFamilyNameRemote(
+            supabaseRef.current!,
+            familyId,
+            name,
+          );
         });
       },
       updateBaby: (babyPatch) => {

@@ -1,5 +1,5 @@
 /* すくすくログ Service Worker — iOS PWA 通知 + キャッシュ更新 */
-const SW_VERSION = "2026-08-02d-test-notify";
+const SW_VERSION = "2026-08-12-review-fixes";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -88,7 +88,7 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(payload.title || "すくすくログ", {
       body: payload.body || "",
       tag: payload.tag || "sukusuku-push",
-      data: { url: payload.url || "./home/" },
+      data: { url: payload.url || "/home/" },
       lang: "ja",
     }),
   );
@@ -96,8 +96,15 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const raw =
+    (event.notification.data && event.notification.data.url) || "/home/";
   const url =
-    (event.notification.data && event.notification.data.url) || "./home/";
+    typeof raw === "string" &&
+    raw.startsWith("/") &&
+    !raw.startsWith("//") &&
+    !raw.includes("..")
+      ? raw
+      : "/home/";
 
   event.waitUntil(
     self.clients

@@ -41,7 +41,7 @@ export const MOCK_BABY: Baby = {
 export const MOCK_NOW_ISO = "2026-07-30T15:00:00+09:00";
 
 export const MOCK_HOME_STATUS: HomeStatus = {
-  lastFormulaAt: "2026-07-30T13:25:00+09:00", // 1時間35分前
+  lastFeedingAt: "2026-07-30T13:25:00+09:00", // 1時間35分前
   lastDiaperAt: "2026-07-30T14:15:00+09:00", // 45分前
   lastSleepAt: "2026-07-30T13:30:00+09:00",
   lastSleepMinutes: 80,

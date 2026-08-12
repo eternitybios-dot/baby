@@ -30,6 +30,9 @@ export function SettingsScreen() {
     updateBaby,
     updateDisplayName,
     updateFamilyName,
+    rotateInviteCode,
+    leaveFamily,
+    resetServerConfig,
     notifyReady,
     notifyPermissionGranted,
     pushRegistered,
@@ -228,7 +231,7 @@ export function SettingsScreen() {
         <div className="mt-3 flex items-center gap-2">
           <div className="flex-1 rounded-xl border border-border bg-background px-3 py-2">
             <p className="text-[11px] text-muted-foreground">招待コード</p>
-            <p className="font-mono text-lg tracking-[0.25em]">
+            <p className="font-mono text-lg tracking-[0.18em]">
               {state.family.inviteCode || "------"}
             </p>
           </div>
@@ -249,6 +252,25 @@ export function SettingsScreen() {
             <Copy className="size-4" />
           </Button>
         </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          招待コードはパスワードと同じです。期限は再発行から30日です。
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          className="tap-target mt-2 h-11 w-full"
+          disabled={syncing}
+          onClick={async () => {
+            try {
+              await rotateInviteCode();
+              toast.success("招待コードを再発行しました");
+            } catch {
+              /* runRemote */
+            }
+          }}
+        >
+          招待コードを再発行
+        </Button>
         <ul className="mt-3 space-y-1 text-sm">
           {state.family.members.map((member) => (
             <li
@@ -388,6 +410,44 @@ export function SettingsScreen() {
           }}
         >
           保存する
+        </Button>
+      </section>
+
+      <section className="space-y-3 rounded-2xl bg-card p-4 shadow-soft">
+        <h2 className="text-sm font-medium text-muted-foreground">この端末</h2>
+        <p className="text-xs text-muted-foreground">
+          家族から退出すると、この端末の記録画面は初期状態に戻ります。招待コードがあれば再参加できます。
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          className="tap-target h-11 w-full"
+          disabled={syncing}
+          onClick={async () => {
+            if (!window.confirm("この端末を家族から退出しますか？")) return;
+            try {
+              await leaveFamily();
+              toast.success("家族から退出しました");
+            } catch {
+              /* runRemote */
+            }
+          }}
+        >
+          家族から退出する
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="tap-target h-11 w-full text-muted-foreground"
+          onClick={() => {
+            if (!window.confirm("サーバー設定を消して最初から接続し直しますか？")) {
+              return;
+            }
+            resetServerConfig();
+            toast.message("サーバー設定をリセットしました");
+          }}
+        >
+          サーバー設定をやり直す
         </Button>
       </section>
     </div>

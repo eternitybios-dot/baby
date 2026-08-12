@@ -18,8 +18,8 @@ export function CurrentStatusCard({
     {
       key: "formula",
       icon: Baby,
-      label: "最後のミルク",
-      value: formatElapsed(status.lastFormulaAt, now),
+      label: "最後の授乳",
+      value: formatElapsed(status.lastFeedingAt, now),
       tone: "bg-primary/20 text-primary-foreground",
     },
     {

@@ -45,8 +45,8 @@ export interface Baby {
 }
 
 export interface HomeStatus {
-  lastFormulaAt: string; // ISO
-  lastDiaperAt: string;
+  lastFeedingAt: string | null;
+  lastDiaperAt: string | null;
   lastSleepAt: string | null;
   lastSleepMinutes: number | null;
 }

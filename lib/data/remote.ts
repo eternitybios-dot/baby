@@ -370,6 +370,26 @@ export async function joinFamilyWithCode(
   if (error) throw error;
 }
 
+export async function rotateInviteCodeRemote(
+  supabase: SupabaseClient,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("rotate_invite_code");
+  if (error) throw error;
+  const code =
+    data && typeof data === "object" && "invite_code" in data
+      ? String((data as { invite_code: unknown }).invite_code ?? "")
+      : "";
+  if (!code) throw new Error("招待コードを発行できませんでした");
+  return code;
+}
+
+export async function leaveCurrentFamilyRemote(
+  supabase: SupabaseClient,
+): Promise<void> {
+  const { error } = await supabase.rpc("leave_current_family");
+  if (error) throw error;
+}
+
 export async function updateProfileName(
   supabase: SupabaseClient,
   userId: string,

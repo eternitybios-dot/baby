@@ -88,9 +88,7 @@ export function TabSwipeMain({
   }, []);
 
   const settleHome = useCallback(async () => {
-    setTransition(
-      `transform ${ANIM_MS}ms ${EASE}, opacity ${ANIM_MS}ms ${EASE}`,
-    );
+    setTransition(`transform ${ANIM_MS}ms ${EASE}`);
     setOffset(0);
     setDragging(false);
     await wait(ANIM_MS);
@@ -115,35 +113,19 @@ export function TabSwipeMain({
         return;
       }
 
-      const exitX = direction === "next" ? -width : width;
       const enterX = direction === "next" ? width : -width;
-
-      const slideTransition = `transform ${ANIM_MS}ms ${EASE}, opacity ${ANIM_MS}ms ${EASE}`;
-
-      setDragging(false);
-      setTransition(slideTransition);
-      setOffset(exitX);
-      await wait(ANIM_MS);
+      const slideTransition = `transform ${ANIM_MS}ms ${EASE}`;
 
       pendingEnterRef.current = direction;
+      setDragging(false);
+      router.push(target);
       setTransition("none");
       setOffset(enterX);
 
-      const fromPath = pathnameRef.current;
-      router.push(target);
-
-      // ルート差し替えを待ってから入ってくる
-      const started = Date.now();
-      while (
-        pathnameRef.current === fromPath &&
-        Date.now() - started < 900
-      ) {
-        await wait(16);
-      }
-
-      // 1フレーム置いてから enter（transition:none の enterX を確定させる）
       await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => resolve());
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
       });
       setTransition(slideTransition);
       setOffset(0);
@@ -278,10 +260,6 @@ export function TabSwipeMain({
     transform: `translate3d(${offsetX}px, 0, 0)`,
     transition,
     willChange: dragging || transition !== "none" ? "transform" : undefined,
-    opacity:
-      dragging || offsetX !== 0
-        ? Math.max(0.72, 1 - Math.abs(offsetX) / 900)
-        : 1,
   };
 
   return (

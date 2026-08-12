@@ -304,14 +304,14 @@ export function FamilyGate() {
         ) : (
           <>
             <div className="space-y-1">
-              <Label htmlFor="invite">招待コード（6桁）</Label>
+              <Label htmlFor="invite">招待コード</Label>
               <Input
                 id="invite"
-                className="h-11 uppercase tracking-[0.2em]"
-                placeholder="ABC123"
+                className="h-11 uppercase tracking-[0.18em]"
+                placeholder="10桁のコード"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                maxLength={8}
+                maxLength={12}
               />
             </div>
             <Button
@@ -334,10 +334,17 @@ export function FamilyGate() {
                     displayName: resolvedDisplayName,
                   });
                 } catch (error) {
+                  const raw =
+                    error instanceof Error ? error.message : "参加に失敗しました";
+                  const lower = raw.toLowerCase();
                   toast.error(
-                    error instanceof Error
-                      ? error.message
-                      : "参加に失敗しました",
+                    lower.includes("expired")
+                      ? "招待コードの期限が切れています。再発行してもらってください"
+                      : lower.includes("too many")
+                        ? "参加の試行が多すぎます。しばらく待ってください"
+                        : lower.includes("invalid")
+                          ? "招待コードが違います"
+                          : raw,
                   );
                 } finally {
                   setBusy(false);

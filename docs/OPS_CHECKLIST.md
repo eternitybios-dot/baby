@@ -18,44 +18,36 @@ https://eternitybios-dot.github.io/baby/home/ が更新されること。
 
 ## 2. VAPID 鍵（通知を動かすために必須）
 
-**公開鍵と秘密鍵は必ず同じペア。** 混ぜると送信がすべて失敗します。
+**公開鍵と秘密鍵は必ず同じペア。** 混ぜると送信がすべて失敗します。  
+**秘密鍵は Git / Issue / チャットに書かない。** Dashboard の Secrets だけに置く。
 
-### 現在の本番ペア（Edge に設定済み・クライアントもこれに合わせる）
+公開鍵（アプリ埋め込みと揃える）:
 
-- **Public**  
-  `BOGThgT-ThjwFpMvvfWN9_pfqLKfZo-f5w9A55bPRYTCaQVnJO9pDwMog1yz_9jYhUPIbeH-USlpYmlMEOnH8zk`
-- **Private**  
-  `KZAhV4989qRnmm87TVvnlFaD2mAtk_bX-1F-cn2aL3s`
-- **Subject**  
-  `mailto:eternitybios@gmail.com`
+`BOGThgT-ThjwFpMvvfWN9_pfqLKfZo-f5w9A55bPRYTCaQVnJO9pDwMog1yz_9jYhUPIbeH-USlpYmlMEOnH8zk`
 
-※ 2026-08-02 に別ペアへ回転しようとしましたが、Edge Secrets 更新ができず
-クライアントだけ新公開鍵になり **鍵不一致で送信失敗** していました。  
-アプリ側は上記の Edge 一致ペアに戻しています。
+Subject: `mailto:eternitybios@gmail.com`
 
-※ Private は Issue / PR コメントに再投稿しないでください。漏れたら `npx web-push generate-vapid-keys` で作り直す。
+漏れたら `npx web-push generate-vapid-keys` で作り直し、Edge と GitHub Secrets を**同じペア**に更新する。
 
 ### A. GitHub Secrets
 
-リポジトリ → **Settings → Secrets and variables → Actions → New repository secret**
+リポジトリ → **Settings → Secrets and variables → Actions**
 
 | Name | Value |
 |------|-------|
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | 上記 Public（または空のまま＝アプリ埋め込みを使う） |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | 上記 Public（または空のまま＝アプリ埋め込み） |
 | `VAPID_PUBLIC_KEY` | 上記 Public |
-| `VAPID_PRIVATE_KEY` | 上記 Private |
+| `VAPID_PRIVATE_KEY` | Dashboard の Private（リポジトリに書かない） |
 | `VAPID_SUBJECT` | `mailto:eternitybios@gmail.com` |
-
-（Pages 用に `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` も入れておくと初回設定が楽）
 
 ### B. Supabase Edge Secrets
 
-Dashboard → Project → **Edge Functions → Secrets**（または Project Settings → Edge Functions）
+Dashboard → Project → **Edge Functions → Secrets**
 
 | Name | Value |
 |------|-------|
 | `VAPID_PUBLIC_KEY` | 上記 Public |
-| `VAPID_PRIVATE_KEY` | 上記 Private |
+| `VAPID_PRIVATE_KEY` | Private |
 | `VAPID_SUBJECT` | `mailto:eternitybios@gmail.com` |
 
 Project Ref: `rgukivjlxvsddzbkkpyj`
@@ -65,30 +57,20 @@ Project Ref: `rgukivjlxvsddzbkkpyj`
 GitHub Actions → **Deploy notify-family** → Run workflow  
 `project_ref` = `rgukivjlxvsddzbkkpyj`
 
-またはローカル:
+### D. 両端末
 
-```bash
-SUPABASE_ACCESS_TOKEN=sbp_xxx \
-SUPABASE_PROJECT_REF=rgukivjlxvsddzbkkpyj \
-VAPID_PUBLIC_KEY='（Public）' \
-VAPID_PRIVATE_KEY='（Private）' \
-VAPID_SUBJECT='mailto:eternitybios@gmail.com' \
-npm run deploy:notify-family
-```
-
-### D. Pages 再デプロイ＆両端末
-
-1. `main` をデプロイ（この PR マージで自動）
-2. **夫婦どちらも**ホーム画面アイコンからアプリを開き直す
-3. 設定 → いったん通知オフ → **通知をオン**（テスト通知が来る）
-4. 片方で記録 → もう片方に Push が届く
+1. 夫婦どちらもホーム画面アイコンからアプリを開き直す
+2. 設定 → いったん通知オフ → **通知をオン**
+3. 片方で記録 → もう片方に Push が届く
 
 ## 3. SQL（未実行なら）
 
-1. [003_push_subscriptions.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/003_push_subscriptions.sql)
-2. [004_security_hardening.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/004_security_hardening.sql)
-3. 確認: [005_verify_security_hardening.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/005_verify_security_hardening.sql)
-4. 家族名を全員が消せるようにする: [006_families_update_members.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/006_families_update_members.sql)
+貼り付け先: https://supabase.com/dashboard/project/rgukivjlxvsddzbkkpyj/sql/new
+
+1. [004_security_hardening.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/004_security_hardening.sql)
+2. 確認: [005_verify_security_hardening.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/005_verify_security_hardening.sql)
+3. 家族名を全員が消せる: [006_families_update_members.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/006_families_update_members.sql)
+4. 招待コード強化・退出: [007_invite_and_leave.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/007_invite_and_leave.sql)
 
 ## 4. よくあるつまずき
 
@@ -96,4 +78,4 @@ npm run deploy:notify-family
 - 公開鍵だけ新しくして秘密鍵が古い → 必ず同じペア
 - 003 未実行 → 購読保存に失敗する
 - 片方だけ通知オン → オンにした側にしか届かない
-- 「相手への通知を送れませんでした（0/1）」→ 鍵不一致か相手の購読無効。両端末で開き直し＋通知オフ→オン
+- 007 未実行 → 招待コード再発行・家族退出が失敗する

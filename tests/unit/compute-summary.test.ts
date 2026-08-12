@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeCharts,
+  computeHomeStatus,
   computeTodaySummary,
   getTodayTimeline,
 } from "@/lib/data/compute";
@@ -77,6 +78,30 @@ describe("授乳・睡眠・おむつの集計", () => {
 
     const timeline = getTodayTimeline(records, now);
     expect(timeline.map((r) => r.id)).toEqual(["3", "2", "4", "1"]);
+  });
+
+  it("記録が無いときは最後の授乳・おむつをまだなしにする", () => {
+    const status = computeHomeStatus([]);
+    expect(status.lastFeedingAt).toBeNull();
+    expect(status.lastDiaperAt).toBeNull();
+    expect(status.lastSleepAt).toBeNull();
+  });
+
+  it("最後の授乳は母乳も含める", () => {
+    const status = computeHomeStatus(
+      [
+        makeRecord({
+          id: "b",
+          recordType: "breast",
+          recordedAt: "2026-08-01T11:00:00.000+09:00",
+          detail: {
+            type: "breast",
+            breast: { leftMinutes: 5, rightMinutes: 5 },
+          },
+        }),
+      ],
+    );
+    expect(status.lastFeedingAt).toBe("2026-08-01T11:00:00.000+09:00");
   });
 });
 

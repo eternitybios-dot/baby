@@ -25,13 +25,24 @@ export function compareCareRecordsDesc(a: CareRecord, b: CareRecord): number {
   return b.id.localeCompare(a.id);
 }
 
+export function recordsOnJstDay(
+  records: CareRecord[],
+  day: Date,
+): CareRecord[] {
+  const dayStart = startOfJstDay(day).getTime();
+  const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+  return records
+    .filter((r) => {
+      const t = new Date(r.recordedAt).getTime();
+      return t >= dayStart && t < dayEnd;
+    })
+    .sort(compareCareRecordsDesc);
+}
+
 export function computeHomeStatus(
   records: CareRecord[],
-  now: Date,
 ): HomeStatus {
-  const formula = records
-    .filter((r) => r.recordType === "formula" || r.detail.type === "formula")
-    .sort(compareCareRecordsDesc)[0];
+  const feeding = records.filter(isFeeding).sort(compareCareRecordsDesc)[0];
   const diaper = records
     .filter((r) => r.recordType === "diaper")
     .sort(compareCareRecordsDesc)[0];
@@ -52,8 +63,8 @@ export function computeHomeStatus(
       : null;
 
   return {
-    lastFormulaAt: formula?.recordedAt ?? now.toISOString(),
-    lastDiaperAt: diaper?.recordedAt ?? now.toISOString(),
+    lastFeedingAt: feeding?.recordedAt ?? null,
+    lastDiaperAt: diaper?.recordedAt ?? null,
     lastSleepAt: sleep?.recordedAt ?? null,
     lastSleepMinutes,
   };
@@ -101,14 +112,7 @@ export function getTodayTimeline(
   records: CareRecord[],
   now: Date,
 ): CareRecord[] {
-  const dayStart = startOfJstDay(now).getTime();
-  const dayEnd = dayStart + 24 * 60 * 60 * 1000;
-  return records
-    .filter((r) => {
-      const t = new Date(r.recordedAt).getTime();
-      return t >= dayStart && t < dayEnd;
-    })
-    .sort(compareCareRecordsDesc);
+  return recordsOnJstDay(records, now);
 }
 
 export function chartPeriodDays(period: ChartPeriod): number {

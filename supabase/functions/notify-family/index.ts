@@ -30,6 +30,21 @@ function isGoneStatus(error: unknown): boolean {
   return status === 404 || status === 410;
 }
 
+/** アプリ内の相対パスだけ許可（外部 URL への誘導を防ぐ） */
+function sanitizePushUrl(raw: string): string {
+  const fallback = "/home/";
+  try {
+    if (!raw) return fallback;
+    if (/^[a-z]+:/i.test(raw)) return fallback;
+    const path = raw.startsWith("/") ? raw : `/${raw}`;
+    if (path.includes("\\") || path.includes("..")) return fallback;
+    if (!/^\/(baby\/)?[a-z0-9/_-]*$/i.test(path)) return fallback;
+    return path.endsWith("/") ? path : `${path}/`;
+  } catch {
+    return fallback;
+  }
+}
+
 function classifyPushFailure(error: unknown): {
   code: string;
   detail: string;
@@ -103,9 +118,10 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const familyId = String(body.familyId ?? "");
-    const title = String(body.title ?? "すくすくログ");
-    const text = String(body.body ?? "新しい記録があります");
-    const url = String(body.url ?? "/home/");
+    const title = String(body.title ?? "すくすくログ").slice(0, 80);
+    const text = String(body.body ?? "新しい記録があります").slice(0, 180);
+    const rawUrl = String(body.url ?? "/home/");
+    const url = sanitizePushUrl(rawUrl);
     const excludeUserId = String(body.excludeUserId ?? user.id);
 
     if (!familyId) {

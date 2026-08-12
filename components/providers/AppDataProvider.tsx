@@ -41,6 +41,8 @@ import {
   insertGrowthRemote,
   insertHabitRemote,
   joinFamilyWithCode,
+  leaveCurrentFamilyRemote,
+  rotateInviteCodeRemote,
   softDeleteCareRecord,
   softDeleteConcern,
   softDeleteGrowth,
@@ -57,6 +59,7 @@ import { reconcileCareRecordsList } from "@/lib/data/records-list";
 import {
   resolveSupabaseConfig,
   saveStoredSupabaseConfig,
+  clearStoredSupabaseConfig,
   type SupabaseConfig,
 } from "@/lib/supabase/config";
 import { getSupabaseClient, resetSupabaseClient } from "@/lib/supabase/client";
@@ -145,12 +148,16 @@ interface AppDataContextValue {
   hasMoreRecords: boolean;
   loadingMoreRecords: boolean;
   loadMoreRecords: () => Promise<void>;
+  loadRecordsForDay: (ymd: string) => Promise<void>;
   setCurrentUser: (userId: string) => void;
   updateDisplayName: (displayName: string) => Promise<void>;
   updateFamilyName: (familyName: string) => Promise<void>;
+  rotateInviteCode: () => Promise<void>;
+  leaveFamily: () => Promise<void>;
+  resetServerConfig: () => void;
   updateBaby: (patch: Partial<Baby>) => void;
   addCareRecord: (input: CreateCareInput) => CareRecord;
-  updateCareRecord: (id: string, patch: Partial<CareRecord>) => void;
+  updateCareRecord: (id: string, patch: Partial<CareRecord>) => Promise<void>;
   deleteCareRecord: (id: string) => void;
   quickSave: (
     action: QuickRecordAction,
@@ -522,6 +529,35 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
   }, [hasMoreRecords, loadingMoreRecords]);
 
+  const loadRecordsForDay = useCallback(async (ymd: string) => {
+    const supabase = supabaseRef.current;
+    const familyId = familyIdRef.current || stateRef.current.baby.familyId;
+    if (!supabase || !familyId || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return;
+    const fromIso = new Date(`${ymd}T00:00:00+09:00`).toISOString();
+    const toIso = new Date(`${ymd}T00:00:00+09:00`);
+    toIso.setDate(toIso.getDate() + 1);
+    try {
+      const rows = await fetchCareRecordsInRange(supabase, {
+        familyId,
+        profileById: buildProfileMapFromState(stateRef.current),
+        fromIso,
+        toIso: toIso.toISOString(),
+      });
+      setRecordsList((prev) => {
+        const seen = new Set(prev.map((r) => r.id));
+        const merged = [...prev];
+        for (const row of rows) {
+          if (!seen.has(row.id)) merged.push(row);
+        }
+        return merged;
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "その日の記録を取得できませんでした",
+      );
+    }
+  }, []);
+
   const setChartPeriod = useCallback(
     (period: ChartPeriod) => {
       setChartPeriodState(period);
@@ -568,8 +604,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, [state]);
 
   const status = useMemo(
-    () => computeHomeStatus(state.records, now),
-    [state.records, now],
+    () => computeHomeStatus(state.records),
+    [state.records],
   );
   const summary = useMemo(
     () => computeTodaySummary(state.records, now),
@@ -611,6 +647,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       hasMoreRecords,
       loadingMoreRecords,
       loadMoreRecords,
+      loadRecordsForDay,
       setCurrentUser: () => {
         toast.message("記録者は端末ごとに固定です。表示名は設定から変更できます。");
       },
@@ -652,6 +689,35 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             name,
           );
         });
+      },
+      rotateInviteCode: async () => {
+        await runRemote(async () => {
+          const code = await rotateInviteCodeRemote(supabaseRef.current!);
+          applyState({
+            ...stateRef.current,
+            family: {
+              ...stateRef.current.family,
+              inviteCode: code,
+            },
+          });
+        });
+      },
+      leaveFamily: async () => {
+        await runRemote(async () => {
+          await leaveCurrentFamilyRemote(supabaseRef.current!);
+        });
+        applyState(createEmptyState());
+        setBootPhase("needs_family");
+      },
+      resetServerConfig: () => {
+        clearStoredSupabaseConfig();
+        resetSupabaseClient();
+        supabaseRef.current = null;
+        userIdRef.current = "";
+        familyIdRef.current = "";
+        applyState(createEmptyState());
+        setBootError(null);
+        setBootPhase("needs_config");
       },
       updateBaby: (babyPatch) => {
         const nextBaby = {
@@ -700,7 +766,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         });
         return record;
       },
-      updateCareRecord: (id, recordPatch) => {
+      updateCareRecord: async (id, recordPatch) => {
         applyState({
           ...stateRef.current,
           records: stateRef.current.records.map((r) =>
@@ -713,7 +779,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         setChartRecords((prev) =>
           prev.map((r) => (r.id === id ? { ...r, ...recordPatch } : r)),
         );
-        void runRemote(async () => {
+        await runRemote(async () => {
           await updateCareRecordRemote(supabaseRef.current!, id, recordPatch);
         });
       },
@@ -1138,6 +1204,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     hasMoreRecords,
     loadingMoreRecords,
     loadMoreRecords,
+    loadRecordsForDay,
     notifyReady,
     notifyPermissionGranted,
     pushRegistered,

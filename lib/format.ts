@@ -9,7 +9,8 @@ export function formatDurationMinutes(totalMinutes: number): string {
   return `${hours}時間${minutes}分`;
 }
 
-export function formatElapsed(fromIso: string, now: Date): string {
+export function formatElapsed(fromIso: string | null, now: Date): string {
+  if (!fromIso) return "まだなし";
   const diffMs = Math.max(0, now.getTime() - new Date(fromIso).getTime());
   const totalMinutes = Math.floor(diffMs / 60000);
   const hours = Math.floor(totalMinutes / 60);

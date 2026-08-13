@@ -390,6 +390,27 @@ export async function leaveCurrentFamilyRemote(
   if (error) throw error;
 }
 
+export async function removeFamilyMemberRemote(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("remove_family_member", {
+    p_user_id: userId,
+  });
+  if (!error) return;
+  const message = error.message ?? "";
+  if (
+    error.code === "PGRST202" ||
+    /could not find the function/i.test(message) ||
+    /remove_family_member/i.test(message) && /does not exist|schema cache/i.test(message)
+  ) {
+    throw new Error(
+      "作成者を外す準備がサーバー側でまだです。SQL 008 を実行してください",
+    );
+  }
+  throw error;
+}
+
 export async function updateProfileName(
   supabase: SupabaseClient,
   userId: string,

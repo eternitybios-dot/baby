@@ -42,6 +42,7 @@ import {
   insertHabitRemote,
   joinFamilyWithCode,
   leaveCurrentFamilyRemote,
+  removeFamilyMemberRemote,
   rotateInviteCodeRemote,
   softDeleteCareRecord,
   softDeleteConcern,
@@ -55,6 +56,7 @@ import {
   updateHabitRemote,
   updateProfileName,
 } from "@/lib/data/remote";
+import { familyMembersAfterRemoval } from "@/lib/data/family-members";
 import { reconcileCareRecordsList } from "@/lib/data/records-list";
 import {
   resolveSupabaseConfig,
@@ -157,6 +159,7 @@ interface AppDataContextValue {
   updateFamilyName: (familyName: string) => Promise<void>;
   rotateInviteCode: () => Promise<void>;
   leaveFamily: () => Promise<void>;
+  removeFamilyMember: (userId: string) => Promise<void>;
   resetServerConfig: () => void;
   updateBaby: (patch: Partial<Baby>) => void;
   addCareRecord: (input: CreateCareInput) => CareRecord;
@@ -757,6 +760,28 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         });
         applyState(createEmptyState());
         setBootPhase("needs_family");
+      },
+      removeFamilyMember: async (userId) => {
+        const nextMembers = familyMembersAfterRemoval(
+          stateRef.current.family.members,
+          userId,
+          userIdRef.current,
+        );
+        applyState({
+          ...stateRef.current,
+          family: {
+            ...stateRef.current.family,
+            members: nextMembers,
+          },
+        });
+        await runRemote(async () => {
+          await removeFamilyMemberRemote(supabaseRef.current!, userId);
+        });
+        try {
+          await reloadBundle();
+        } catch {
+          /* 楽観更新のまま */
+        }
       },
       resetServerConfig: () => {
         clearStoredSupabaseConfig();

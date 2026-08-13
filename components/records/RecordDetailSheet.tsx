@@ -13,7 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppData } from "@/components/providers/AppDataProvider";
+import { SleepRangeFields } from "@/components/records/SleepRangeFields";
 import type { CareRecord, CareRecordDetail, DiaperKind } from "@/types/domain";
+import { buildSleepRange, jstHm } from "@/lib/data/sleep-range";
 import { timelinePrimaryText, timelineTimeText } from "@/lib/format";
 
 interface RecordDetailSheetProps {
@@ -28,15 +30,17 @@ function patchFromEdits(
     amountMl: string;
     leftMinutes: string;
     rightMinutes: string;
-    sleepMinutes: string;
+    sleepStartHm: string;
+    sleepEndHm: string;
     celsius: string;
     diaperKind: DiaperKind;
   },
-): Partial<CareRecord> {
+): { ok: true; patch: Partial<CareRecord> } | { ok: false; error: string } {
   const note = edits.note.trim() || null;
   let detail: CareRecordDetail = record.detail;
   let startedAt = record.startedAt;
   let endedAt = record.endedAt;
+  let recordedAt = record.recordedAt;
 
   if (record.detail.type === "formula") {
     const amountMl = Math.max(0, Number(edits.amountMl) || 0);
@@ -50,16 +54,24 @@ function patchFromEdits(
       },
     };
   } else if (record.detail.type === "sleep") {
-    const durationMinutes = Math.max(1, Number(edits.sleepMinutes) || 1);
-    const end = record.endedAt ?? record.recordedAt;
-    const start = new Date(
-      new Date(end).getTime() - durationMinutes * 60_000,
-    ).toISOString();
-    startedAt = start;
-    endedAt = end;
+    const range = buildSleepRange({
+      startHm: edits.sleepStartHm,
+      endHm: edits.sleepEndHm,
+      anchor: new Date(record.endedAt ?? record.recordedAt),
+    });
+    if (!range.ok) {
+      return { ok: false, error: range.error };
+    }
+    startedAt = range.startedAt;
+    endedAt = range.endedAt;
+    recordedAt = range.endedAt;
     detail = {
       type: "sleep",
-      sleep: { startedAt: start, endedAt: end, durationMinutes },
+      sleep: {
+        startedAt: range.startedAt,
+        endedAt: range.endedAt,
+        durationMinutes: range.durationMinutes,
+      },
     };
   } else if (record.detail.type === "diaper") {
     detail = { type: "diaper", diaper: { kind: edits.diaperKind } };
@@ -70,7 +82,7 @@ function patchFromEdits(
     };
   }
 
-  return { note, detail, startedAt, endedAt };
+  return { ok: true, patch: { note, detail, startedAt, endedAt, recordedAt } };
 }
 
 export function RecordDetailSheet({ record, onClose }: RecordDetailSheetProps) {
@@ -104,9 +116,14 @@ function RecordDetailEditor({
       ? String(record.detail.breast.rightMinutes)
       : "",
   );
-  const [sleepMinutes, setSleepMinutes] = useState(
+  const [sleepStartHm, setSleepStartHm] = useState(
     record.detail.type === "sleep"
-      ? String(record.detail.sleep.durationMinutes ?? "")
+      ? jstHm(new Date(record.detail.sleep.startedAt))
+      : "",
+  );
+  const [sleepEndHm, setSleepEndHm] = useState(
+    record.detail.type === "sleep"
+      ? jstHm(new Date(record.detail.sleep.endedAt ?? record.recordedAt))
       : "",
   );
   const [celsius, setCelsius] = useState(
@@ -119,17 +136,22 @@ function RecordDetailEditor({
   );
 
   const saveEdits = async () => {
-    const patch = patchFromEdits(record, {
+    const result = patchFromEdits(record, {
       note,
       amountMl,
       leftMinutes,
       rightMinutes,
-      sleepMinutes,
+      sleepStartHm,
+      sleepEndHm,
       celsius,
       diaperKind,
     });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
     try {
-      await updateCareRecord(record.id, patch);
+      await updateCareRecord(record.id, result.patch);
       toast.success("記録を保存しました");
       setEditing(false);
     } catch {
@@ -203,16 +225,13 @@ function RecordDetailEditor({
                   </div>
                 ) : null}
                 {record.detail.type === "sleep" ? (
-                  <div className="space-y-1">
-                    <Label htmlFor="editSleep">睡眠時間 (分)</Label>
-                    <Input
-                      id="editSleep"
-                      className="h-11"
-                      inputMode="numeric"
-                      value={sleepMinutes}
-                      onChange={(e) => setSleepMinutes(e.target.value)}
-                    />
-                  </div>
+                  <SleepRangeFields
+                    startHm={sleepStartHm}
+                    endHm={sleepEndHm}
+                    onStartChange={setSleepStartHm}
+                    onEndChange={setSleepEndHm}
+                    anchor={new Date(record.endedAt ?? record.recordedAt)}
+                  />
                 ) : null}
                 {record.detail.type === "temperature" ? (
                   <div className="space-y-1">

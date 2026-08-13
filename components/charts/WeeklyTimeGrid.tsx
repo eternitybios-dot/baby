@@ -130,7 +130,7 @@ export function WeeklyTimeGrid({
                     <span
                       key={mark.recordId}
                       className={cn(
-                        "absolute left-1/2 w-2 -translate-x-1/2 rounded-full shadow-soft",
+                        "absolute left-1/2 w-3 -translate-x-1/2 rounded-full shadow-soft",
                         TYPE_DOT[mark.recordType],
                       )}
                       style={{ top: markTop(mark), height }}

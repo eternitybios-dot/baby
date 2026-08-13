@@ -10,7 +10,11 @@ import {
 } from "lucide-react";
 import type { CareRecord, CareRecordType } from "@/types/domain";
 import { formatElapsed, timelinePrimaryText, timelineTimeText } from "@/lib/format";
-import { groupRecordsByJstHour, sleepOccupiedHours } from "@/lib/data/day-log";
+import {
+  groupRecordsByJstHour,
+  sleepOccupiedHours,
+  sleepSpansOnJstDay,
+} from "@/lib/data/day-log";
 import { cn } from "@/lib/utils";
 import { useOpenRecordDetail } from "@/components/layout/MobileAppShell";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -50,8 +54,10 @@ export function DayLogTimeline({
   emptyTitle = "この日の記録はまだありません",
 }: DayLogTimelineProps) {
   const openDetail = useOpenRecordDetail();
-  const byHour = groupRecordsByJstHour(records, day);
+  const instantRecords = records.filter((record) => record.recordType !== "sleep");
+  const byHour = groupRecordsByJstHour(instantRecords, day);
   const sleepHours = sleepOccupiedHours(records, day);
+  const sleepSpans = sleepSpansOnJstDay(records, day);
 
   if (records.length === 0) {
     return (
@@ -62,93 +68,151 @@ export function DayLogTimeline({
     );
   }
 
+  const rowSizes = HOURS.map((hour) => {
+    if (byHour[hour].length > 0) return "minmax(3.5rem, auto)";
+    if (sleepHours.has(hour)) return "minmax(2.5rem, auto)";
+    return "1rem";
+  }).join(" ");
+
   return (
     <section aria-label="一日のタイムライン" className="relative">
-      <ol className="space-y-0">
-        {HOURS.map((hour) => {
-          const hourRecords = byHour[hour];
-          const hasEvents = hourRecords.length > 0;
-          const inSleep = sleepHours.has(hour);
-          return (
-            <li
-              key={hour}
-              className={cn(
-                "flex gap-2",
-                hasEvents
-                  ? "min-h-14 items-start py-1"
-                  : inSleep
-                    ? "h-6 items-stretch"
-                    : "h-4 items-center",
-              )}
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: "1.75rem 0.9rem minmax(0, 1fr)",
+          gridTemplateRows: rowSizes,
+          columnGap: "0.5rem",
+        }}
+      >
+        {HOURS.map((hour) => (
+          <div
+            key={`label-${hour}`}
+            className="pt-0.5 text-right text-[10px] tabular-nums leading-none text-muted-foreground"
+            style={{ gridColumn: 1, gridRow: hour + 1 }}
+          >
+            {hour}
+          </div>
+        ))}
+
+        <div
+          className="relative"
+          style={{ gridColumn: 2, gridRow: "1 / 25" }}
+          aria-hidden
+        >
+          <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
+        </div>
+
+        {sleepSpans.map((span) => (
+          <div
+            key={`bar-${span.record.id}`}
+            className="relative z-10"
+            style={{
+              gridColumn: 2,
+              gridRow: `${span.startHour + 1} / ${span.endHour + 2}`,
+            }}
+            aria-hidden
+          >
+            <span className="absolute inset-y-0 left-1/2 w-2.5 -translate-x-1/2 rounded-full bg-secondary" />
+          </div>
+        ))}
+
+        {HOURS.map((hour) =>
+          byHour[hour].length > 0 ? (
+            <div
+              key={`dot-${hour}`}
+              className="relative z-20 flex justify-center pt-1"
+              style={{ gridColumn: 2, gridRow: hour + 1 }}
+              aria-hidden
             >
-              <div className="flex w-7 shrink-0 flex-col items-end pt-0.5">
-                <span className="text-[10px] tabular-nums leading-none text-muted-foreground">
-                  {hour}
-                </span>
-              </div>
-              <div className="relative flex w-3 shrink-0 flex-col items-center self-stretch">
-                <span
-                  className="absolute inset-y-0 w-px bg-border"
-                  aria-hidden
+              <span className="size-2.5 rounded-full bg-accent shadow-soft" />
+            </div>
+          ) : null,
+        )}
+
+        {sleepSpans.map((span) => (
+          <div
+            key={`sleep-${span.record.id}`}
+            className="z-10 flex items-center py-1"
+            style={{
+              gridColumn: 3,
+              gridRow: `${span.startHour + 1} / ${span.endHour + 2}`,
+            }}
+          >
+            <RecordCard
+              record={span.record}
+              now={now}
+              onOpen={() => openDetail(span.record)}
+            />
+          </div>
+        ))}
+
+        {HOURS.map((hour) =>
+          byHour[hour].length > 0 ? (
+            <div
+              key={`events-${hour}`}
+              className="z-20 flex flex-col justify-center gap-2 py-1"
+              style={{ gridColumn: 3, gridRow: hour + 1 }}
+            >
+              {byHour[hour].map((record) => (
+                <RecordCard
+                  key={record.id}
+                  record={record}
+                  now={now}
+                  onOpen={() => openDetail(record)}
                 />
-                {inSleep ? (
-                  <span
-                    className="absolute inset-y-0 w-1 rounded-full bg-secondary"
-                    aria-hidden
-                  />
-                ) : null}
-                {hasEvents ? (
-                  <span
-                    className="relative z-10 mt-1 size-2.5 rounded-full bg-accent shadow-soft"
-                    aria-hidden
-                  />
-                ) : null}
-              </div>
-              <div className="min-w-0 flex-1 space-y-2">
-                {hourRecords.map((record) => {
-                  const meta = ICON_MAP[record.recordType];
-                  const Icon = meta.icon;
-                  return (
-                    <button
-                      key={record.id}
-                      type="button"
-                      onClick={() => openDetail(record)}
-                      className="flex w-full min-h-11 items-center gap-2.5 rounded-2xl bg-card px-2.5 py-2 text-left shadow-soft transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/40 active:scale-[0.99]"
-                      aria-label={`${timelinePrimaryText(record)}の詳細`}
-                    >
-                      <span
-                        className={cn(
-                          "flex size-9 shrink-0 items-center justify-center rounded-full",
-                          meta.tone,
-                        )}
-                        aria-hidden
-                      >
-                        <Icon className="size-4" strokeWidth={1.75} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-sm font-semibold text-primary">
-                            {timelinePrimaryText(record)}
-                          </span>
-                          <time
-                            dateTime={record.recordedAt}
-                            className="shrink-0 text-[11px] tabular-nums text-muted-foreground"
-                          >
-                            {timelineTimeText(record)}
-                          </time>
-                        </span>
-                        <span className="mt-0.5 block text-[11px] text-primary/80">
-                          {formatElapsed(record.recordedAt, now)}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+              ))}
+            </div>
+          ) : null,
+        )}
+      </div>
     </section>
+  );
+}
+
+function RecordCard({
+  record,
+  now,
+  onOpen,
+}: {
+  record: CareRecord;
+  now: Date;
+  onOpen: () => void;
+}) {
+  const meta = ICON_MAP[record.recordType];
+  const Icon = meta.icon;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full min-h-11 items-center gap-2.5 rounded-2xl bg-card px-2.5 py-2 text-left shadow-soft transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/40 active:scale-[0.99]"
+      aria-label={`${timelinePrimaryText(record)}の詳細`}
+    >
+      <span
+        className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-full",
+          meta.tone,
+        )}
+        aria-hidden
+      >
+        <Icon className="size-4" strokeWidth={1.75} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline justify-between gap-2">
+          <span className="truncate text-sm font-semibold text-primary">
+            {timelinePrimaryText(record)}
+          </span>
+          <time
+            dateTime={record.recordedAt}
+            className="shrink-0 text-[11px] tabular-nums text-muted-foreground"
+          >
+            {timelineTimeText(record)}
+          </time>
+        </span>
+        <span className="mt-0.5 block text-[11px] text-primary/80">
+          {formatElapsed(record.recordedAt, now)}
+        </span>
+      </span>
+    </button>
   );
 }

@@ -28,6 +28,19 @@ export function formatDisplayDate(isoOrDate: string | Date): string {
   return formatAppDate(date, "M月d日(EEE)");
 }
 
+/** 記録画面ヘッダ用（例: 2026/8/12(水)） */
+export function formatLogDate(isoOrDate: string | Date): string {
+  const date = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
+  return formatAppDate(date, "yyyy/M/d(EEE)");
+}
+
+/** 週の範囲（例: 2026/8/9〜2026/8/15） */
+export function formatWeekRange(startYmd: string, endYmd: string): string {
+  const start = formatAppDate(new Date(`${startYmd}T12:00:00+09:00`), "yyyy/M/d");
+  const end = formatAppDate(new Date(`${endYmd}T12:00:00+09:00`), "yyyy/M/d");
+  return `${start}〜${end}`;
+}
+
 export function diaperKindLabel(kind: DiaperKind): string {
   switch (kind) {
     case "urine":

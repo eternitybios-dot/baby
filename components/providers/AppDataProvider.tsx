@@ -149,6 +149,7 @@ interface AppDataContextValue {
   loadingMoreRecords: boolean;
   loadMoreRecords: () => Promise<void>;
   loadRecordsForDay: (ymd: string) => Promise<void>;
+  loadRecordsForRange: (fromYmd: string, toYmdExclusive: string) => Promise<void>;
   setCurrentUser: (userId: string) => void;
   updateDisplayName: (displayName: string) => Promise<void>;
   updateFamilyName: (familyName: string) => Promise<void>;
@@ -529,6 +530,25 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
   }, [hasMoreRecords, loadingMoreRecords]);
 
+  const mergeFetchedRecords = useCallback((rows: CareRecord[]) => {
+    setRecordsList((prev) => {
+      const seen = new Set(prev.map((r) => r.id));
+      const merged = [...prev];
+      for (const row of rows) {
+        if (!seen.has(row.id)) merged.push(row);
+      }
+      return merged;
+    });
+    setChartRecords((prev) => {
+      const seen = new Set(prev.map((r) => r.id));
+      const merged = [...prev];
+      for (const row of rows) {
+        if (!seen.has(row.id)) merged.push(row);
+      }
+      return merged;
+    });
+  }, []);
+
   const loadRecordsForDay = useCallback(async (ymd: string) => {
     const supabase = supabaseRef.current;
     const familyId = familyIdRef.current || stateRef.current.baby.familyId;
@@ -543,20 +563,46 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         fromIso,
         toIso: toIso.toISOString(),
       });
-      setRecordsList((prev) => {
-        const seen = new Set(prev.map((r) => r.id));
-        const merged = [...prev];
-        for (const row of rows) {
-          if (!seen.has(row.id)) merged.push(row);
-        }
-        return merged;
-      });
+      mergeFetchedRecords(rows);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "その日の記録を取得できませんでした",
       );
     }
-  }, []);
+  }, [mergeFetchedRecords]);
+
+  const loadRecordsForRange = useCallback(
+    async (fromYmd: string, toYmdExclusive: string) => {
+      const supabase = supabaseRef.current;
+      const familyId = familyIdRef.current || stateRef.current.baby.familyId;
+      if (
+        !supabase ||
+        !familyId ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(fromYmd) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(toYmdExclusive)
+      ) {
+        return;
+      }
+      const fromIso = new Date(`${fromYmd}T00:00:00+09:00`).toISOString();
+      const toIso = new Date(`${toYmdExclusive}T00:00:00+09:00`).toISOString();
+      try {
+        const rows = await fetchCareRecordsInRange(supabase, {
+          familyId,
+          profileById: buildProfileMapFromState(stateRef.current),
+          fromIso,
+          toIso,
+        });
+        mergeFetchedRecords(rows);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "その週の記録を取得できませんでした",
+        );
+      }
+    },
+    [mergeFetchedRecords],
+  );
 
   const setChartPeriod = useCallback(
     (period: ChartPeriod) => {
@@ -648,6 +694,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       loadingMoreRecords,
       loadMoreRecords,
       loadRecordsForDay,
+      loadRecordsForRange,
       setCurrentUser: () => {
         toast.message("記録者は端末ごとに固定です。表示名は設定から変更できます。");
       },
@@ -1205,6 +1252,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     loadingMoreRecords,
     loadMoreRecords,
     loadRecordsForDay,
+    loadRecordsForRange,
     notifyReady,
     notifyPermissionGranted,
     pushRegistered,

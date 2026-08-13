@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   CalendarDays,
-  Home,
+  PenLine,
   Plus,
   Settings,
 } from "lucide-react";
@@ -20,18 +20,18 @@ interface BottomNavigationProps {
 const leftItems: ReadonlyArray<{
   href: MainTabHref;
   label: string;
-  icon: typeof Home;
+  icon: typeof PenLine;
 }> = [
-  { href: "/home", label: "ホーム", icon: Home },
+  { href: "/home", label: "記録", icon: PenLine },
   { href: "/calendar", label: "カレンダー", icon: CalendarDays },
 ];
 
 const rightItems: ReadonlyArray<{
   href: MainTabHref;
   label: string;
-  icon: typeof Home;
+  icon: typeof PenLine;
 }> = [
-  { href: "/charts", label: "グラフ", icon: BarChart3 },
+  { href: "/charts", label: "まとめ", icon: BarChart3 },
   { href: "/settings", label: "設定", icon: Settings },
 ];
 
@@ -46,7 +46,7 @@ function NavLink({
 }: {
   href: string;
   label: string;
-  icon: typeof Home;
+  icon: typeof PenLine;
 }) {
   const pathname = usePathname();
   const active = isActive(pathname, href);
@@ -95,12 +95,12 @@ export function BottomNavigation({ onRecordPress }: BottomNavigationProps) {
               type="button"
               onClick={onRecordPress}
               className="flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-soft ring-4 ring-background transition active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/50"
-              aria-label="記録"
+              aria-label="記録を追加"
             >
               <Plus className="size-8" strokeWidth={2.25} />
             </button>
             <span className="mt-1 text-[11px] font-medium text-foreground">
-              記録
+              追加
             </span>
           </div>
 

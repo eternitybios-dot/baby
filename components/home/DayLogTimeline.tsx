@@ -70,19 +70,18 @@ export function DayLogTimeline({
     );
   }
 
-  const stackedHours = new Set<number>();
+  const cardsInHour = Array.from({ length: 24 }, () => 0);
   for (const group of cardGroups) {
-    if (group.records.length < 2) continue;
-    for (let hour = group.startHour; hour <= group.endHour; hour += 1) {
-      stackedHours.add(hour);
-    }
+    if (group.startHour !== group.endHour) continue;
+    cardsInHour[group.startHour] += group.records.length;
   }
 
   const rowSizes = HOURS.map((hour) => {
-    if (byHour[hour].length > 0 || stackedHours.has(hour)) {
-      return "minmax(3.5rem, auto)";
+    const n = cardsInHour[hour] ?? 0;
+    if (n > 0) return `minmax(${Math.max(4, n * 4)}rem, auto)`;
+    if (byHour[hour].length > 0 || sleepHours.has(hour)) {
+      return "minmax(2.5rem, auto)";
     }
-    if (sleepHours.has(hour)) return "minmax(2.5rem, auto)";
     return "1rem";
   }).join(" ");
 
@@ -144,7 +143,7 @@ export function DayLogTimeline({
         {cardGroups.map((group) => (
           <div
             key={group.records.map((record) => record.id).join("-")}
-            className="z-10 flex min-h-0 flex-col justify-center gap-2 py-1"
+            className="z-10 flex flex-col justify-center gap-2 py-1"
             style={{
               gridColumn: 3,
               gridRow: `${group.startHour + 1} / ${group.endHour + 2}`,
@@ -181,7 +180,9 @@ function RecordCard({
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full min-h-11 items-center gap-2.5 rounded-2xl bg-card px-2.5 py-2 text-left shadow-soft transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/40 active:scale-[0.99]"
+      data-testid="timeline-card"
+      data-record-id={record.id}
+      className="flex w-full min-h-11 shrink-0 items-center gap-2.5 rounded-2xl bg-card px-2.5 py-2 text-left shadow-soft transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/40 active:scale-[0.99]"
       aria-label={`${timelinePrimaryText(record)}の詳細`}
     >
       <span

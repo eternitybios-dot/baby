@@ -369,109 +369,126 @@ export interface TimelineCardGroup {
   records: CareRecord[];
 }
 
-/** カード高さ（約 3.5rem）の半分を、睡眠帯の短い行（約 2.5rem）で割った時間 */
-const CARD_HALF_HOURS = 0.7;
-
-type TimelineLayoutItem = {
-  record: CareRecord;
-  startHour: number;
-  endHour: number;
-  y0: number;
-  y1: number;
-};
-
-function rangesOverlap(a0: number, a1: number, b0: number, b1: number): boolean {
-  return a0 < b1 && b0 < a1;
-}
-
 function compareTimelineRecords(a: CareRecord, b: CareRecord): number {
   const byTime = recordTimelineAt(a).getTime() - recordTimelineAt(b).getTime();
   if (byTime !== 0) return byTime;
   return a.id.localeCompare(b.id);
 }
 
-function layoutItemsOnJstDay(
-  records: CareRecord[],
+function hourSpanOnJstDay(
+  record: CareRecord,
   day: Date,
-): TimelineLayoutItem[] {
-  const items: TimelineLayoutItem[] = [];
-  for (const record of records) {
-    if (record.recordType === "sleep") {
-      const hours = hoursOccupiedOnJstDay(record, day);
-      if (hours.length === 0) continue;
-      const startHour = hours[0] ?? 0;
-      const endHour = hours[hours.length - 1] ?? 0;
-      const spanHours = endHour - startHour + 1;
-      const center = startHour + spanHours / 2;
-      const half = Math.min(CARD_HALF_HOURS, spanHours / 2);
-      items.push({
-        record,
-        startHour,
-        endHour,
-        y0: center - half,
-        y1: center + half,
-      });
-      continue;
-    }
-    const hours = hoursOccupiedOnJstDay(record, day);
-    if (hours.length === 0) continue;
-    const hour = hours[0] ?? 0;
-    items.push({
-      record,
-      startHour: hour,
-      endHour: hour,
-      y0: hour,
-      y1: hour + 1,
-    });
+): { startHour: number; endHour: number } | null {
+  const hours = hoursOccupiedOnJstDay(record, day);
+  if (hours.length === 0) return null;
+  return { startHour: hours[0] ?? 0, endHour: hours[hours.length - 1] ?? 0 };
+}
+
+/** 睡眠カードは帯の中央の時間へ。その他は記録時刻の時間へ。 */
+export function timelinePlacementHour(
+  record: CareRecord,
+  day: Date,
+): number | null {
+  const span = hourSpanOnJstDay(record, day);
+  if (!span) return null;
+  if (record.recordType === "sleep") {
+    return Math.round((span.startHour + span.endHour) / 2);
   }
-  return items.sort((a, b) => {
-    if (a.y0 !== b.y0) return a.y0 - b.y0;
-    return compareTimelineRecords(a.record, b.record);
-  });
+  return span.startHour;
+}
+
+function hourRangesOverlap(
+  a: { startHour: number; endHour: number },
+  b: { startHour: number; endHour: number },
+): boolean {
+  return a.startHour <= b.endHour && b.startHour <= a.endHour;
 }
 
 /**
- * 睡眠カードを帯の高さ中央に置いたとき他のカードと重なる場合は、
- * 開始時刻の早い順に同じセルへ積み替えて重なりを避ける。
+ * カード用グリッドセル。複数時間にまたぐのは「その帯に他のカードが無い睡眠」だけ。
+ * 帯と他記録が重なるときは開始時刻の早い順に、同じ時間のセルへ積み替える。
+ * セルの時間範囲は互いに重ならない。
  */
 export function timelineCardGroups(
   records: CareRecord[],
   day: Date,
 ): TimelineCardGroup[] {
-  const items = layoutItemsOnJstDay(records, day);
-  if (items.length === 0) return [];
+  const sleeps: { record: CareRecord; startHour: number; endHour: number }[] =
+    [];
+  const instantHours = new Set<number>();
 
-  type Cluster = {
-    startHour: number;
-    endHour: number;
-    y0: number;
-    y1: number;
-    records: CareRecord[];
-  };
-
-  const clusters: Cluster[] = [];
-  for (const item of items) {
-    const last = clusters[clusters.length - 1];
-    if (last && rangesOverlap(item.y0, item.y1, last.y0, last.y1)) {
-      last.startHour = Math.min(last.startHour, item.startHour);
-      last.endHour = Math.max(last.endHour, item.endHour);
-      last.y0 = Math.min(last.y0, item.y0);
-      last.y1 = Math.max(last.y1, item.y1);
-      last.records.push(item.record);
+  for (const record of records) {
+    if (record.recordType === "sleep") {
+      const span = hourSpanOnJstDay(record, day);
+      if (!span) continue;
+      sleeps.push({ record, ...span });
     } else {
-      clusters.push({
-        startHour: item.startHour,
-        endHour: item.endHour,
-        y0: item.y0,
-        y1: item.y1,
-        records: [item.record],
-      });
+      const hour = timelinePlacementHour(record, day);
+      if (hour == null) continue;
+      instantHours.add(hour);
     }
   }
 
-  return clusters.map((cluster) => ({
-    startHour: cluster.startHour,
-    endHour: cluster.endHour,
-    records: [...cluster.records].sort(compareTimelineRecords),
-  }));
+  sleeps.sort((a, b) => compareTimelineRecords(a.record, b.record));
+
+  const used = new Set<string>();
+  const groups: TimelineCardGroup[] = [];
+
+  for (const sleep of sleeps) {
+    if (used.has(sleep.record.id)) continue;
+    const crowdedByInstant = [...instantHours].some(
+      (hour) => hour >= sleep.startHour && hour <= sleep.endHour,
+    );
+    const crowdedBySleep = sleeps.some(
+      (other) =>
+        other.record.id !== sleep.record.id &&
+        hourRangesOverlap(sleep, other),
+    );
+    if (crowdedByInstant || crowdedBySleep) continue;
+    groups.push({
+      startHour: sleep.startHour,
+      endHour: sleep.endHour,
+      records: [sleep.record],
+    });
+    used.add(sleep.record.id);
+  }
+
+  const buckets = new Map<number, CareRecord[]>();
+  for (const record of records) {
+    if (used.has(record.id)) continue;
+    const hour = timelinePlacementHour(record, day);
+    if (hour == null) continue;
+    const list = buckets.get(hour) ?? [];
+    list.push(record);
+    buckets.set(hour, list);
+  }
+
+  for (const hour of [...buckets.keys()].sort((a, b) => a - b)) {
+    const bucket = buckets.get(hour);
+    if (!bucket || bucket.length === 0) continue;
+    groups.push({
+      startHour: hour,
+      endHour: hour,
+      records: [...bucket].sort(compareTimelineRecords),
+    });
+  }
+
+  return groups.sort(
+    (a, b) => a.startHour - b.startHour || a.endHour - b.endHour,
+  );
+}
+
+export function timelineGroupsOverlapHours(
+  groups: TimelineCardGroup[],
+): boolean {
+  const sorted = [...groups].sort(
+    (a, b) => a.startHour - b.startHour || a.endHour - b.endHour,
+  );
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = sorted[i - 1];
+    const next = sorted[i];
+    if (!prev || !next) continue;
+    if (hourRangesOverlap(prev, next)) return true;
+  }
+  return false;
 }

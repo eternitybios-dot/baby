@@ -79,6 +79,9 @@ export function timelinePrimaryText(record: CareRecord): string {
     case "diaper":
       return `おむつ ${diaperKindLabel(detail.diaper.kind)}`;
     case "sleep": {
+      if (detail.sleep.startedAt && detail.sleep.endedAt) {
+        return `睡眠 ${formatClock(detail.sleep.startedAt)}〜${formatClock(detail.sleep.endedAt)}`;
+      }
       const duration = detail.sleep.durationMinutes
         ? formatDurationMinutes(detail.sleep.durationMinutes)
         : "記録中";
@@ -96,8 +99,20 @@ export function timelinePrimaryText(record: CareRecord): string {
 }
 
 export function timelineTimeText(record: CareRecord): string {
-  if (record.recordType === "sleep" && record.startedAt && record.endedAt) {
-    return `${formatClock(record.startedAt)}〜${formatClock(record.endedAt)}`;
+  if (record.recordType === "sleep" && record.detail.type === "sleep") {
+    const minutes =
+      record.detail.sleep.durationMinutes ??
+      (record.startedAt && record.endedAt
+        ? Math.round(
+            (new Date(record.endedAt).getTime() -
+              new Date(record.startedAt).getTime()) /
+              60000,
+          )
+        : null);
+    if (minutes != null && minutes > 0) {
+      return formatDurationMinutes(minutes);
+    }
+    return "記録中";
   }
   return formatClock(record.recordedAt);
 }

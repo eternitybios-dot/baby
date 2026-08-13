@@ -337,3 +337,28 @@ export function sleepOccupiedHours(
   }
   return hours;
 }
+
+export interface SleepDaySpan {
+  record: CareRecord;
+  startHour: number;
+  endHour: number;
+}
+
+/** その日に重なる睡眠を、開始〜終了の時間帯（0–23）として返す */
+export function sleepSpansOnJstDay(
+  records: CareRecord[],
+  day: Date,
+): SleepDaySpan[] {
+  const spans: SleepDaySpan[] = [];
+  for (const record of records) {
+    if (record.recordType !== "sleep") continue;
+    const hours = hoursOccupiedOnJstDay(record, day);
+    if (hours.length === 0) continue;
+    spans.push({
+      record,
+      startHour: hours[0] ?? 0,
+      endHour: hours[hours.length - 1] ?? 0,
+    });
+  }
+  return spans;
+}

@@ -9,6 +9,7 @@ import {
   jstWeekdaySunday0,
   recordMatchesCategory,
   sleepOccupiedHours,
+  sleepSpansOnJstDay,
   startOfJstWeekSunday,
   weekGridMarks,
 } from "@/lib/data/day-log";
@@ -160,6 +161,9 @@ describe("時刻バケットとカテゴリ", () => {
     expect(buckets[15]).toHaveLength(0);
     expect([...sleepOccupiedHours([sleep], day)].sort((a, b) => a - b)).toEqual([
       12, 13, 14, 15,
+    ]);
+    expect(sleepSpansOnJstDay([sleep], day)).toEqual([
+      { record: sleep, startHour: 12, endHour: 15 },
     ]);
 
     const week = jstWeekYmds(day);

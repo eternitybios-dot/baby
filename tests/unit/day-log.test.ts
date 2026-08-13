@@ -8,6 +8,7 @@ import {
   jstWeekYmds,
   jstWeekdaySunday0,
   recordMatchesCategory,
+  sleepOccupiedHours,
   startOfJstWeekSunday,
   weekGridMarks,
 } from "@/lib/data/day-log";
@@ -135,6 +136,41 @@ describe("時刻バケットとカテゴリ", () => {
     expect(buckets[12].map((r) => r.id)).toEqual(["earlier"]);
     expect(buckets[15].map((r) => r.id)).toEqual(["later"]);
     expect(buckets[0]).toHaveLength(0);
+  });
+
+  it("睡眠は開始時刻の時間帯に置き、途中の時間も占める", () => {
+    const day = new Date("2026-08-13T12:00:00+09:00");
+    const sleep = makeRecord({
+      id: "nap",
+      recordType: "sleep",
+      recordedAt: "2026-08-13T15:45:00+09:00",
+      startedAt: "2026-08-13T12:45:00+09:00",
+      endedAt: "2026-08-13T15:45:00+09:00",
+      detail: {
+        type: "sleep",
+        sleep: {
+          startedAt: "2026-08-13T12:45:00+09:00",
+          endedAt: "2026-08-13T15:45:00+09:00",
+          durationMinutes: 180,
+        },
+      },
+    });
+    const buckets = groupRecordsByJstHour([sleep], day);
+    expect(buckets[12].map((r) => r.id)).toEqual(["nap"]);
+    expect(buckets[15]).toHaveLength(0);
+    expect([...sleepOccupiedHours([sleep], day)].sort((a, b) => a - b)).toEqual([
+      12, 13, 14, 15,
+    ]);
+
+    const week = jstWeekYmds(day);
+    const marks = weekGridMarks([sleep], week, "sleep");
+    expect(marks).toHaveLength(1);
+    expect(marks[0]).toMatchObject({
+      ymd: "2026-08-13",
+      hour: 12,
+      minute: 45,
+      endHour: 15.75,
+    });
   });
 
   it("選択した週の量を日別に集計する", () => {

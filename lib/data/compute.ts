@@ -1,4 +1,5 @@
 import { jstYmd, startOfJstDay } from "@/lib/data/app-state";
+import { recordOverlapsJstDay } from "@/lib/data/day-log";
 import { formatAppDate } from "@/lib/date";
 import type {
   CareRecord,
@@ -29,13 +30,8 @@ export function recordsOnJstDay(
   records: CareRecord[],
   day: Date,
 ): CareRecord[] {
-  const dayStart = startOfJstDay(day).getTime();
-  const dayEnd = dayStart + 24 * 60 * 60 * 1000;
   return records
-    .filter((r) => {
-      const t = new Date(r.recordedAt).getTime();
-      return t >= dayStart && t < dayEnd;
-    })
+    .filter((r) => recordOverlapsJstDay(r, day))
     .sort(compareCareRecordsDesc);
 }
 

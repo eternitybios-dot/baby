@@ -57,7 +57,7 @@ const ACTIONS: Array<{
   {
     key: "sleep",
     label: "睡眠",
-    description: "何時から何時まで",
+    description: "開始時刻と終了時刻",
     icon: Moon,
     tone: "bg-secondary/50",
   },

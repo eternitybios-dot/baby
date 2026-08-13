@@ -59,6 +59,10 @@ iPhone の通知（ホーム画面アプリ）を使う場合は追加で:
 
 → [007_invite_and_leave.sql（生テキスト）](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/007_invite_and_leave.sql)
 
+作成者を含む家族メンバーを設定画面から外せるようにする場合:
+
+→ [008_remove_family_member.sql（生テキスト）](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/008_remove_family_member.sql)
+
 貼り付け先: https://supabase.com/dashboard/project/rgukivjlxvsddzbkkpyj/sql/new
 
 詳しい通知手順: [docs/PUSH_SETUP.md](./PUSH_SETUP.md) / 運用一覧: [docs/OPS_CHECKLIST.md](./OPS_CHECKLIST.md)

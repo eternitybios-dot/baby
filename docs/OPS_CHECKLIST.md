@@ -71,6 +71,7 @@ GitHub Actions → **Deploy notify-family** → Run workflow
 2. 確認: [005_verify_security_hardening.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/005_verify_security_hardening.sql)
 3. 家族名を全員が消せる: [006_families_update_members.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/006_families_update_members.sql)
 4. 招待コード強化・退出: [007_invite_and_leave.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/007_invite_and_leave.sql)
+5. 作成者を含むメンバー削除: [008_remove_family_member.sql](https://raw.githubusercontent.com/eternitybios-dot/baby/main/supabase/migrations/008_remove_family_member.sql)
 
 ## 4. よくあるつまずき
 

@@ -6,6 +6,7 @@ import {
   Bell,
   Copy,
   Eraser,
+  Trash2,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,6 +33,7 @@ export function SettingsScreen() {
     updateFamilyName,
     rotateInviteCode,
     leaveFamily,
+    removeFamilyMember,
     resetServerConfig,
     notifyReady,
     notifyPermissionGranted,
@@ -272,23 +274,57 @@ export function SettingsScreen() {
           招待コードを再発行
         </Button>
         <ul className="mt-3 space-y-1 text-sm">
-          {state.family.members.map((member) => (
-            <li
-              key={member.id}
-              className="flex items-center justify-between gap-2"
-            >
-              <span className="min-w-0 truncate">
-                {member.displayName || "（名前なし）"}
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {member.id === currentUser.id
-                  ? "この端末"
-                  : member.role === "owner"
-                    ? "作成者"
-                    : "メンバー"}
-              </span>
-            </li>
-          ))}
+          {state.family.members.map((member) => {
+            const isSelf = member.id === currentUser.id;
+            const roleLabel = isSelf
+              ? "この端末"
+              : member.role === "owner"
+                ? "作成者"
+                : "メンバー";
+            return (
+              <li
+                key={member.id}
+                className="flex items-center justify-between gap-2"
+              >
+                <span className="min-w-0 truncate">
+                  {member.displayName || "（名前なし）"}
+                </span>
+                <span className="flex shrink-0 items-center gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {roleLabel}
+                  </span>
+                  {!isSelf ? (
+                    <button
+                      type="button"
+                      className="tap-target flex size-9 items-center justify-center rounded-full text-destructive transition hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/40 disabled:opacity-50"
+                      disabled={syncing}
+                      aria-label={`${member.displayName || "メンバー"}を家族から外す`}
+                      onClick={async () => {
+                        const name = member.displayName || "このメンバー";
+                        const message =
+                          member.role === "owner"
+                            ? `${name}（作成者）を家族から外しますか？この端末が作成者になります。`
+                            : `${name}を家族から外しますか？`;
+                        if (!window.confirm(message)) return;
+                        try {
+                          await removeFamilyMember(member.id);
+                          toast.success(
+                            member.role === "owner"
+                              ? "作成者を外しました"
+                              : "メンバーを外しました",
+                          );
+                        } catch {
+                          /* runRemote 側で toast */
+                        }
+                      }}
+                    >
+                      <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
+                    </button>
+                  ) : null}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       </section>
 

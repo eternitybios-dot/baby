@@ -115,6 +115,8 @@ export interface QuickPayload {
   concernTitle?: string;
   concernBody?: string;
   sleepMinutes?: number;
+  sleepStartedAt?: string;
+  sleepEndedAt?: string;
 }
 
 export type BootPhase =
@@ -852,11 +854,21 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         };
 
         if (action === "sleep") {
-          const durationMinutes = Math.max(1, Math.round(payload.sleepMinutes ?? 60));
-          const endedAt = nowIso;
-          const startedAt = new Date(
-            new Date(endedAt).getTime() - durationMinutes * 60_000,
-          ).toISOString();
+          const endedAt = payload.sleepEndedAt ?? nowIso;
+          const startedAt =
+            payload.sleepStartedAt ??
+            new Date(
+              new Date(endedAt).getTime() -
+                Math.max(1, Math.round(payload.sleepMinutes ?? 60)) * 60_000,
+            ).toISOString();
+          const durationMinutes = Math.max(
+            1,
+            Math.round(
+              payload.sleepMinutes ??
+                (new Date(endedAt).getTime() - new Date(startedAt).getTime()) /
+                  60_000,
+            ),
+          );
           const record: CareRecord = {
             id: createId(),
             ...base,

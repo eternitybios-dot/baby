@@ -22,6 +22,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppData } from "@/components/providers/AppDataProvider";
+import { SleepRangeFields } from "@/components/records/SleepRangeFields";
+import { buildSleepRange, defaultSleepTimes } from "@/lib/data/sleep-range";
 import type { DiaperKind, QuickRecordAction } from "@/types/domain";
 import { cn } from "@/lib/utils";
 
@@ -55,7 +57,7 @@ const ACTIONS: Array<{
   {
     key: "sleep",
     label: "睡眠",
-    description: "睡眠時間を入力",
+    description: "開始時刻と終了時刻",
     icon: Moon,
     tone: "bg-secondary/50",
   },
@@ -101,8 +103,10 @@ export function QuickRecordSheet({
   const [amountMl, setAmountMl] = useState("120");
   const [leftMinutes, setLeftMinutes] = useState("8");
   const [rightMinutes, setRightMinutes] = useState("6");
-  const [sleepHours, setSleepHours] = useState("1");
-  const [sleepMinutes, setSleepMinutes] = useState("30");
+  const [sleepStartHm, setSleepStartHm] = useState(
+    () => defaultSleepTimes().startHm,
+  );
+  const [sleepEndHm, setSleepEndHm] = useState(() => defaultSleepTimes().endHm);
   const [diaperKind, setDiaperKind] = useState<DiaperKind>("urine");
   const [celsius, setCelsius] = useState("36.5");
   const [concernTitle, setConcernTitle] = useState("");
@@ -115,14 +119,20 @@ export function QuickRecordSheet({
     setSaving(true);
     try {
       if (selected === "sleep") {
-        const totalMinutes =
-          (Number(sleepHours) || 0) * 60 + (Number(sleepMinutes) || 0);
-        if (totalMinutes <= 0) {
-          toast.error("睡眠時間を入力してください");
+        const range = buildSleepRange({
+          startHm: sleepStartHm,
+          endHm: sleepEndHm,
+        });
+        if (!range.ok) {
+          toast.error(range.error);
           setSaving(false);
           return;
         }
-        quickSave("sleep", { sleepMinutes: totalMinutes });
+        quickSave("sleep", {
+          sleepStartedAt: range.startedAt,
+          sleepEndedAt: range.endedAt,
+          sleepMinutes: range.durationMinutes,
+        });
         toast.success("睡眠を記録しました");
       } else if (selected === "formula") {
         quickSave("formula", { amountMl: Number(amountMl) || 120 });
@@ -290,26 +300,12 @@ export function QuickRecordSheet({
           ) : null}
 
           {selected === "sleep" ? (
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="時間">
-                <Input
-                  inputMode="numeric"
-                  value={sleepHours}
-                  onChange={(e) => setSleepHours(e.target.value)}
-                  className="h-11"
-                  aria-label="睡眠時間（時間）"
-                />
-              </Field>
-              <Field label="分">
-                <Input
-                  inputMode="numeric"
-                  value={sleepMinutes}
-                  onChange={(e) => setSleepMinutes(e.target.value)}
-                  className="h-11"
-                  aria-label="睡眠時間（分）"
-                />
-              </Field>
-            </div>
+            <SleepRangeFields
+              startHm={sleepStartHm}
+              endHm={sleepEndHm}
+              onStartChange={setSleepStartHm}
+              onEndChange={setSleepEndHm}
+            />
           ) : null}
 
           {selected ? (

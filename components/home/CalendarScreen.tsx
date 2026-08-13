@@ -56,7 +56,7 @@ export function CalendarScreen() {
       {dayRecords.length === 0 ? (
         <EmptyState
           title={`${formatAppDate(selectedDate, "M月d日")}の記録はありません`}
-          description="別の日を選ぶか、ホームから記録できます"
+          description="別の日を選ぶか、記録タブから残せます"
         />
       ) : (
         <Timeline

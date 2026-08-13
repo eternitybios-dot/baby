@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import type { CareRecord, CareRecordType } from "@/types/domain";
 import { formatElapsed, timelinePrimaryText, timelineTimeText } from "@/lib/format";
-import { groupRecordsByJstHour } from "@/lib/data/day-log";
+import { groupRecordsByJstHour, sleepOccupiedHours } from "@/lib/data/day-log";
 import { cn } from "@/lib/utils";
 import { useOpenRecordDetail } from "@/components/layout/MobileAppShell";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -39,16 +39,19 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 interface DayLogTimelineProps {
   records: CareRecord[];
   now: Date;
+  day: Date;
   emptyTitle?: string;
 }
 
 export function DayLogTimeline({
   records,
   now,
+  day,
   emptyTitle = "この日の記録はまだありません",
 }: DayLogTimelineProps) {
   const openDetail = useOpenRecordDetail();
-  const byHour = groupRecordsByJstHour(records);
+  const byHour = groupRecordsByJstHour(records, day);
+  const sleepHours = sleepOccupiedHours(records, day);
 
   if (records.length === 0) {
     return (
@@ -65,12 +68,17 @@ export function DayLogTimeline({
         {HOURS.map((hour) => {
           const hourRecords = byHour[hour];
           const hasEvents = hourRecords.length > 0;
+          const inSleep = sleepHours.has(hour);
           return (
             <li
               key={hour}
               className={cn(
                 "flex gap-2",
-                hasEvents ? "min-h-14 items-start py-1" : "h-4 items-center",
+                hasEvents
+                  ? "min-h-14 items-start py-1"
+                  : inSleep
+                    ? "h-6 items-stretch"
+                    : "h-4 items-center",
               )}
             >
               <div className="flex w-7 shrink-0 flex-col items-end pt-0.5">
@@ -83,6 +91,12 @@ export function DayLogTimeline({
                   className="absolute inset-y-0 w-px bg-border"
                   aria-hidden
                 />
+                {inSleep ? (
+                  <span
+                    className="absolute inset-y-0 w-1 rounded-full bg-secondary"
+                    aria-hidden
+                  />
+                ) : null}
                 {hasEvents ? (
                   <span
                     className="relative z-10 mt-1 size-2.5 rounded-full bg-accent shadow-soft"

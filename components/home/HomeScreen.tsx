@@ -99,6 +99,7 @@ export function HomeScreen() {
       <DayLogTimeline
         records={dayRecords}
         now={now}
+        day={selectedDate}
         emptyTitle={
           isToday ? "まだ今日の記録がありません" : "この日の記録はありません"
         }

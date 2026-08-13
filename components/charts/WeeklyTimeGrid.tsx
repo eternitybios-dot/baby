@@ -34,6 +34,13 @@ function markTop(mark: WeekGridMark): number {
   return ((mark.hour + mark.minute / 60) / 24) * GRID_HEIGHT;
 }
 
+function markHeight(mark: WeekGridMark): number | null {
+  if (mark.endHour == null) return null;
+  const start = mark.hour + mark.minute / 60;
+  const height = ((mark.endHour - start) / 24) * GRID_HEIGHT;
+  return height > 4 ? height : null;
+}
+
 interface WeeklyTimeGridProps {
   weekYmds: string[];
   records: CareRecord[];
@@ -116,17 +123,33 @@ export function WeeklyTimeGrid({
             ))}
             {marks
               .filter((mark) => mark.ymd === ymd)
-              .map((mark) => (
-                <span
-                  key={mark.recordId}
-                  className={cn(
-                    "absolute left-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full shadow-soft",
-                    TYPE_DOT[mark.recordType],
-                  )}
-                  style={{ top: markTop(mark) }}
-                  title={`${mark.hour}:${String(mark.minute).padStart(2, "0")}`}
-                />
-              ))}
+              .map((mark) => {
+                const height = markHeight(mark);
+                if (height != null) {
+                  return (
+                    <span
+                      key={mark.recordId}
+                      className={cn(
+                        "absolute left-1/2 w-2 -translate-x-1/2 rounded-full shadow-soft",
+                        TYPE_DOT[mark.recordType],
+                      )}
+                      style={{ top: markTop(mark), height }}
+                      title={`${mark.hour}:${String(mark.minute).padStart(2, "0")}`}
+                    />
+                  );
+                }
+                return (
+                  <span
+                    key={mark.recordId}
+                    className={cn(
+                      "absolute left-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full shadow-soft",
+                      TYPE_DOT[mark.recordType],
+                    )}
+                    style={{ top: markTop(mark) }}
+                    title={`${mark.hour}:${String(mark.minute).padStart(2, "0")}`}
+                  />
+                );
+              })}
           </div>
         ))}
       </div>

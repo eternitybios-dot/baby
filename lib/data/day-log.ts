@@ -13,6 +13,8 @@ export interface WeekGridMark {
   ymd: string;
   hour: number;
   minute: number;
+  /** 睡眠など、終了時刻があるときの小数時間（0–24） */
+  endHour?: number;
   recordId: string;
   recordType: CareRecordType;
 }
@@ -128,6 +130,11 @@ export function weekGridMarks(
   const marks: WeekGridMark[] = [];
   for (const record of records) {
     if (!recordMatchesCategory(record, category)) continue;
+    const bounds = sleepBounds(record);
+    if (bounds) {
+      marks.push(...sleepMarksForWeek(record, bounds, allowed));
+      continue;
+    }
     const at = new Date(record.recordedAt);
     const ymd = jstYmd(at);
     if (!allowed.has(ymd)) continue;
@@ -140,6 +147,40 @@ export function weekGridMarks(
     });
   }
   return marks;
+}
+
+function sleepMarksForWeek(
+  record: CareRecord,
+  bounds: { start: Date; end: Date },
+  allowed: Set<string>,
+): WeekGridMark[] {
+  const marks: WeekGridMark[] = [];
+  let cursor = startOfJstDay(bounds.start);
+  const last = startOfJstDay(bounds.end);
+  while (cursor.getTime() <= last.getTime()) {
+    const ymd = jstYmd(cursor);
+    const dayStart = cursor.getTime();
+    const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+    const start = Math.max(bounds.start.getTime(), dayStart);
+    const end = Math.min(bounds.end.getTime(), dayEnd);
+    cursor = new Date(dayEnd);
+    if (!allowed.has(ymd) || end <= start) continue;
+    const startDate = new Date(start);
+    marks.push({
+      ymd,
+      hour: jstHour(startDate),
+      minute: jstMinute(startDate),
+      endHour: fractionalHourOnDay(end, dayStart),
+      recordId: `${record.id}:${ymd}`,
+      recordType: record.recordType,
+    });
+  }
+  return marks;
+}
+
+function fractionalHourOnDay(timeMs: number, dayStartMs: number): number {
+  const hours = (timeMs - dayStartMs) / (60 * 60 * 1000);
+  return Math.min(24, Math.max(0, hours));
 }
 
 export function dayCountsByYmd(
@@ -212,13 +253,87 @@ export function computeWeekMetrics(
 
 export function groupRecordsByJstHour(
   records: CareRecord[],
+  day?: Date,
 ): CareRecord[][] {
   const buckets: CareRecord[][] = Array.from({ length: 24 }, () => []);
-  const chronological = [...records].sort((a, b) =>
-    a.recordedAt.localeCompare(b.recordedAt),
-  );
+  const dayStart = day ? startOfJstDay(day) : null;
+  const chronological = [...records].sort((a, b) => {
+    const byTime = recordTimelineAt(a).getTime() - recordTimelineAt(b).getTime();
+    if (byTime !== 0) return byTime;
+    return a.id.localeCompare(b.id);
+  });
   for (const record of chronological) {
-    buckets[jstHour(new Date(record.recordedAt))].push(record);
+    let at = recordTimelineAt(record);
+    if (dayStart && at.getTime() < dayStart.getTime()) {
+      at = dayStart;
+    }
+    buckets[jstHour(at)].push(record);
   }
   return buckets;
+}
+
+export function sleepBounds(
+  record: CareRecord,
+): { start: Date; end: Date } | null {
+  if (record.recordType !== "sleep") return null;
+  const startIso =
+    record.startedAt ??
+    (record.detail.type === "sleep" ? record.detail.sleep.startedAt : null);
+  const endIso =
+    record.endedAt ??
+    (record.detail.type === "sleep" ? record.detail.sleep.endedAt : null) ??
+    record.recordedAt;
+  if (!startIso) return null;
+  return { start: new Date(startIso), end: new Date(endIso) };
+}
+
+/** タイムライン上の位置。睡眠は開始時刻 */
+export function recordTimelineAt(record: CareRecord): Date {
+  return sleepBounds(record)?.start ?? new Date(record.recordedAt);
+}
+
+export function recordOverlapsJstDay(record: CareRecord, day: Date): boolean {
+  const dayStart = startOfJstDay(day).getTime();
+  const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+  const bounds = sleepBounds(record);
+  if (bounds) {
+    return bounds.start.getTime() < dayEnd && bounds.end.getTime() > dayStart;
+  }
+  const t = new Date(record.recordedAt).getTime();
+  return t >= dayStart && t < dayEnd;
+}
+
+export function hoursOccupiedOnJstDay(
+  record: CareRecord,
+  day: Date,
+): number[] {
+  const dayStart = startOfJstDay(day);
+  const dayStartMs = dayStart.getTime();
+  const dayEndMs = dayStartMs + 24 * 60 * 60 * 1000;
+  const bounds = sleepBounds(record);
+  if (!bounds) {
+    const t = new Date(record.recordedAt).getTime();
+    if (t < dayStartMs || t >= dayEndMs) return [];
+    return [jstHour(new Date(record.recordedAt))];
+  }
+  const start = Math.max(bounds.start.getTime(), dayStartMs);
+  const end = Math.min(bounds.end.getTime(), dayEndMs);
+  if (end <= start) return [];
+  const first = jstHour(new Date(start));
+  const last = jstHour(new Date(Math.max(start, end - 1)));
+  const hours: number[] = [];
+  for (let hour = first; hour <= last; hour += 1) hours.push(hour);
+  return hours;
+}
+
+export function sleepOccupiedHours(
+  records: CareRecord[],
+  day: Date,
+): Set<number> {
+  const hours = new Set<number>();
+  for (const record of records) {
+    if (record.recordType !== "sleep") continue;
+    for (const hour of hoursOccupiedOnJstDay(record, day)) hours.add(hour);
+  }
+  return hours;
 }

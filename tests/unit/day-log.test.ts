@@ -11,6 +11,7 @@ import {
   sleepOccupiedHours,
   sleepSpansOnJstDay,
   startOfJstWeekSunday,
+  timelineCardGroups,
   weekGridMarks,
 } from "@/lib/data/day-log";
 import { jstYmd } from "@/lib/data/app-state";
@@ -203,5 +204,89 @@ describe("時刻バケットとカテゴリ", () => {
     expect(metrics.feedingCounts.find((p) => p.date === "2026-08-12")?.value).toBe(
       1,
     );
+  });
+});
+
+describe("タイムラインカードの重なり回避", () => {
+  const day = new Date("2026-08-13T12:00:00+09:00");
+
+  function sleepRecord(
+    id: string,
+    startedAt: string,
+    endedAt: string,
+    durationMinutes: number,
+  ): CareRecord {
+    return makeRecord({
+      id,
+      recordType: "sleep",
+      recordedAt: endedAt,
+      startedAt,
+      endedAt,
+      detail: {
+        type: "sleep",
+        sleep: { startedAt, endedAt, durationMinutes },
+      },
+    });
+  }
+
+  function formulaRecord(id: string, recordedAt: string, amountMl: number): CareRecord {
+    return makeRecord({
+      id,
+      recordType: "formula",
+      recordedAt,
+      detail: { type: "formula", formula: { amountMl } },
+    });
+  }
+
+  it("短い睡眠の中央揃えがミルクと重なるときは開始時刻順に積み替える", () => {
+    const nap = sleepRecord(
+      "nap",
+      "2026-08-13T08:11:00+09:00",
+      "2026-08-13T09:11:00+09:00",
+      60,
+    );
+    const milk = formulaRecord("milk", "2026-08-13T09:40:00+09:00", 120);
+    const groups = timelineCardGroups([milk, nap], day);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ startHour: 8, endHour: 9 });
+    expect(groups[0]?.records.map((r) => r.id)).toEqual(["nap", "milk"]);
+  });
+
+  it("長い睡眠の中央から離れたミルクは別の位置のままにする", () => {
+    const nap = sleepRecord(
+      "nap",
+      "2026-08-13T11:02:00+09:00",
+      "2026-08-13T15:02:00+09:00",
+      240,
+    );
+    const milk = formulaRecord("milk", "2026-08-13T09:40:00+09:00", 120);
+    const groups = timelineCardGroups([milk, nap], day);
+    expect(groups.map((g) => g.records.map((r) => r.id))).toEqual([
+      ["milk"],
+      ["nap"],
+    ]);
+    expect(groups[0]).toMatchObject({ startHour: 9, endHour: 9 });
+    expect(groups[1]).toMatchObject({ startHour: 11, endHour: 15 });
+  });
+
+  it("長い睡眠の中央と重なるミルクは開始時刻順に同じ帯へ入れる", () => {
+    const nap = sleepRecord(
+      "nap",
+      "2026-08-13T11:02:00+09:00",
+      "2026-08-13T15:02:00+09:00",
+      240,
+    );
+    const milk = formulaRecord("milk", "2026-08-13T13:10:00+09:00", 120);
+    const groups = timelineCardGroups([milk, nap], day);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ startHour: 11, endHour: 15 });
+    expect(groups[0]?.records.map((r) => r.id)).toEqual(["nap", "milk"]);
+  });
+
+  it("隣り合う時間のミルクは別グループのままにする", () => {
+    const earlier = formulaRecord("a", "2026-08-13T09:10:00+09:00", 80);
+    const later = formulaRecord("b", "2026-08-13T10:10:00+09:00", 90);
+    const groups = timelineCardGroups([later, earlier], day);
+    expect(groups.map((g) => g.records.map((r) => r.id))).toEqual([["a"], ["b"]]);
   });
 });

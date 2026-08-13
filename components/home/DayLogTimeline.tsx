@@ -14,6 +14,7 @@ import {
   groupRecordsByJstHour,
   sleepOccupiedHours,
   sleepSpansOnJstDay,
+  timelineCardGroups,
 } from "@/lib/data/day-log";
 import { cn } from "@/lib/utils";
 import { useOpenRecordDetail } from "@/components/layout/MobileAppShell";
@@ -58,6 +59,7 @@ export function DayLogTimeline({
   const byHour = groupRecordsByJstHour(instantRecords, day);
   const sleepHours = sleepOccupiedHours(records, day);
   const sleepSpans = sleepSpansOnJstDay(records, day);
+  const cardGroups = timelineCardGroups(records, day);
 
   if (records.length === 0) {
     return (
@@ -68,8 +70,18 @@ export function DayLogTimeline({
     );
   }
 
+  const stackedHours = new Set<number>();
+  for (const group of cardGroups) {
+    if (group.records.length < 2) continue;
+    for (let hour = group.startHour; hour <= group.endHour; hour += 1) {
+      stackedHours.add(hour);
+    }
+  }
+
   const rowSizes = HOURS.map((hour) => {
-    if (byHour[hour].length > 0) return "minmax(3.5rem, auto)";
+    if (byHour[hour].length > 0 || stackedHours.has(hour)) {
+      return "minmax(3.5rem, auto)";
+    }
     if (sleepHours.has(hour)) return "minmax(2.5rem, auto)";
     return "1rem";
   }).join(" ");
@@ -129,41 +141,25 @@ export function DayLogTimeline({
           ) : null,
         )}
 
-        {sleepSpans.map((span) => (
+        {cardGroups.map((group) => (
           <div
-            key={`sleep-${span.record.id}`}
-            className="z-10 flex items-center py-1"
+            key={group.records.map((record) => record.id).join("-")}
+            className="z-10 flex min-h-0 flex-col justify-center gap-2 py-1"
             style={{
               gridColumn: 3,
-              gridRow: `${span.startHour + 1} / ${span.endHour + 2}`,
+              gridRow: `${group.startHour + 1} / ${group.endHour + 2}`,
             }}
           >
-            <RecordCard
-              record={span.record}
-              now={now}
-              onOpen={() => openDetail(span.record)}
-            />
+            {group.records.map((record) => (
+              <RecordCard
+                key={record.id}
+                record={record}
+                now={now}
+                onOpen={() => openDetail(record)}
+              />
+            ))}
           </div>
         ))}
-
-        {HOURS.map((hour) =>
-          byHour[hour].length > 0 ? (
-            <div
-              key={`events-${hour}`}
-              className="z-20 flex flex-col justify-center gap-2 py-1"
-              style={{ gridColumn: 3, gridRow: hour + 1 }}
-            >
-              {byHour[hour].map((record) => (
-                <RecordCard
-                  key={record.id}
-                  record={record}
-                  now={now}
-                  onOpen={() => openDetail(record)}
-                />
-              ))}
-            </div>
-          ) : null,
-        )}
       </div>
     </section>
   );

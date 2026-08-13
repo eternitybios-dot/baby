@@ -362,3 +362,116 @@ export function sleepSpansOnJstDay(
   }
   return spans;
 }
+
+export interface TimelineCardGroup {
+  startHour: number;
+  endHour: number;
+  records: CareRecord[];
+}
+
+/** カード高さ（約 3.5rem）の半分を、睡眠帯の短い行（約 2.5rem）で割った時間 */
+const CARD_HALF_HOURS = 0.7;
+
+type TimelineLayoutItem = {
+  record: CareRecord;
+  startHour: number;
+  endHour: number;
+  y0: number;
+  y1: number;
+};
+
+function rangesOverlap(a0: number, a1: number, b0: number, b1: number): boolean {
+  return a0 < b1 && b0 < a1;
+}
+
+function compareTimelineRecords(a: CareRecord, b: CareRecord): number {
+  const byTime = recordTimelineAt(a).getTime() - recordTimelineAt(b).getTime();
+  if (byTime !== 0) return byTime;
+  return a.id.localeCompare(b.id);
+}
+
+function layoutItemsOnJstDay(
+  records: CareRecord[],
+  day: Date,
+): TimelineLayoutItem[] {
+  const items: TimelineLayoutItem[] = [];
+  for (const record of records) {
+    if (record.recordType === "sleep") {
+      const hours = hoursOccupiedOnJstDay(record, day);
+      if (hours.length === 0) continue;
+      const startHour = hours[0] ?? 0;
+      const endHour = hours[hours.length - 1] ?? 0;
+      const spanHours = endHour - startHour + 1;
+      const center = startHour + spanHours / 2;
+      const half = Math.min(CARD_HALF_HOURS, spanHours / 2);
+      items.push({
+        record,
+        startHour,
+        endHour,
+        y0: center - half,
+        y1: center + half,
+      });
+      continue;
+    }
+    const hours = hoursOccupiedOnJstDay(record, day);
+    if (hours.length === 0) continue;
+    const hour = hours[0] ?? 0;
+    items.push({
+      record,
+      startHour: hour,
+      endHour: hour,
+      y0: hour,
+      y1: hour + 1,
+    });
+  }
+  return items.sort((a, b) => {
+    if (a.y0 !== b.y0) return a.y0 - b.y0;
+    return compareTimelineRecords(a.record, b.record);
+  });
+}
+
+/**
+ * 睡眠カードを帯の高さ中央に置いたとき他のカードと重なる場合は、
+ * 開始時刻の早い順に同じセルへ積み替えて重なりを避ける。
+ */
+export function timelineCardGroups(
+  records: CareRecord[],
+  day: Date,
+): TimelineCardGroup[] {
+  const items = layoutItemsOnJstDay(records, day);
+  if (items.length === 0) return [];
+
+  type Cluster = {
+    startHour: number;
+    endHour: number;
+    y0: number;
+    y1: number;
+    records: CareRecord[];
+  };
+
+  const clusters: Cluster[] = [];
+  for (const item of items) {
+    const last = clusters[clusters.length - 1];
+    if (last && rangesOverlap(item.y0, item.y1, last.y0, last.y1)) {
+      last.startHour = Math.min(last.startHour, item.startHour);
+      last.endHour = Math.max(last.endHour, item.endHour);
+      last.y0 = Math.min(last.y0, item.y0);
+      last.y1 = Math.max(last.y1, item.y1);
+      last.records.push(item.record);
+    } else {
+      clusters.push({
+        startHour: item.startHour,
+        endHour: item.endHour,
+        y0: item.y0,
+        y1: item.y1,
+        records: [item.record],
+      });
+    }
+  }
+
+  return clusters.map((cluster) => ({
+    startHour: cluster.startHour,
+    endHour: cluster.endHour,
+    records: [...cluster.records].sort(compareTimelineRecords),
+  }));
+}

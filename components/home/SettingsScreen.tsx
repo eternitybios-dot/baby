@@ -21,6 +21,7 @@ import {
   isPushManagerSupported,
 } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
+import { ServerConnectionSettings } from "@/components/home/ServerConnectionSettings";
 
 export function SettingsScreen() {
   const {
@@ -448,6 +449,8 @@ export function SettingsScreen() {
           保存する
         </Button>
       </section>
+
+      <ServerConnectionSettings />
 
       <section className="space-y-3 rounded-2xl bg-card p-4 shadow-soft">
         <h2 className="text-sm font-medium text-muted-foreground">この端末</h2>

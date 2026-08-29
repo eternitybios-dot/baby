@@ -47,3 +47,19 @@ export function clearStoredSupabaseConfig(): void {
 export function resolveSupabaseConfig(): SupabaseConfig | null {
   return loadStoredSupabaseConfig() ?? getEnvSupabaseConfig();
 }
+
+/** 相手の端末に貼る用 */
+export function formatSupabaseConfigShareText(config: SupabaseConfig): string {
+  return `Project URL\n${config.url.trim()}\n\nanon public key\n${config.anonKey.trim()}`;
+}
+
+/** 解決した接続情報をこの端末の localStorage に保管する */
+export function persistResolvedSupabaseConfig(): SupabaseConfig | null {
+  const config = resolveSupabaseConfig();
+  if (!config) return null;
+  saveStoredSupabaseConfig(config);
+  return {
+    url: config.url.trim(),
+    anonKey: config.anonKey.trim(),
+  };
+}

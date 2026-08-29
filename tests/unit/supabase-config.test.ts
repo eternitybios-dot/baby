@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   SUPABASE_CONFIG_KEY,
   formatSupabaseConfigShareText,
+  getSupabaseConfigSnapshot,
   persistResolvedSupabaseConfig,
 } from "@/lib/supabase/config";
 
@@ -78,5 +79,11 @@ describe("接続情報の端末保管", () => {
       anonKey: "eyJanon",
     });
     expect(store.get(SUPABASE_CONFIG_KEY)).toContain("https://example.supabase.co");
+    expect(getSupabaseConfigSnapshot()).toBe(
+      JSON.stringify({
+        url: "https://example.supabase.co",
+        anonKey: "eyJanon",
+      }),
+    );
   });
 });

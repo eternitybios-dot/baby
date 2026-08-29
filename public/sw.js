@@ -1,5 +1,5 @@
 /* すくすくログ Service Worker — iOS PWA 通知 + キャッシュ更新 */
-const SW_VERSION = "2026-08-12-review-fixes";
+const SW_VERSION = "2026-08-29-open-fix";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();

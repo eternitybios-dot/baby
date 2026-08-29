@@ -212,8 +212,8 @@ function withErrorMessage(error: unknown): string {
   if (lower.includes("anonymous") || lower.includes("signups not allowed")) {
     return "匿名ログインが無効です。Supabase の Authentication → Providers → Anonymous を ON にしてください。";
   }
-  if (lower.includes("failed to fetch") || lower.includes("network")) {
-    return "サーバーに届きません。Project URL が正しいか、ネット接続を確認してください。";
+  if (lower.includes("timeout") || lower.includes("タイムアウト")) {
+    return "接続がタイムアウトしました。ネット状況を確認して再試行してください。";
   }
   if (lower.includes("invalid api key") || lower.includes("jwt")) {
     return "anon key が正しくないようです。Supabase の Project Settings → API からコピーし直してください。";
@@ -352,16 +352,32 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const bootstrap = useCallback(async (config: SupabaseConfig) => {
     setBootPhase("loading");
     setBootError(null);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       resetSupabaseClient();
       const supabase = getSupabaseClient(config);
       supabaseRef.current = supabase;
-      const { userId } = await ensureAnonymousSession(supabase);
-      userIdRef.current = userId;
-      await reloadBundle();
+      await Promise.race([
+        (async () => {
+          const { userId } = await ensureAnonymousSession(supabase);
+          userIdRef.current = userId;
+          await reloadBundle();
+        })(),
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(
+              new Error(
+                "接続がタイムアウトしました。ネット状況を確認して再試行してください。",
+              ),
+            );
+          }, 15000);
+        }),
+      ]);
     } catch (error) {
       setBootError(withErrorMessage(error));
       setBootPhase("error");
+    } finally {
+      if (timeoutId != null) clearTimeout(timeoutId);
     }
   }, [reloadBundle]);
 

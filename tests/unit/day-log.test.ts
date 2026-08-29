@@ -11,6 +11,8 @@ import {
   sleepOccupiedHours,
   sleepSpansOnJstDay,
   startOfJstWeekSunday,
+  timelineCardGroups,
+  timelineGroupsOverlapHours,
   weekGridMarks,
 } from "@/lib/data/day-log";
 import { jstYmd } from "@/lib/data/app-state";
@@ -205,3 +207,190 @@ describe("時刻バケットとカテゴリ", () => {
     );
   });
 });
+
+describe("タイムラインカードの重なり回避", () => {
+  const day = new Date("2026-08-13T12:00:00+09:00");
+
+  function sleepRecord(
+    id: string,
+    startedAt: string,
+    endedAt: string,
+    durationMinutes: number,
+  ): CareRecord {
+    return makeRecord({
+      id,
+      recordType: "sleep",
+      recordedAt: endedAt,
+      startedAt,
+      endedAt,
+      detail: {
+        type: "sleep",
+        sleep: { startedAt, endedAt, durationMinutes },
+      },
+    });
+  }
+
+  function formulaRecord(id: string, recordedAt: string, amountMl: number): CareRecord {
+    return makeRecord({
+      id,
+      recordType: "formula",
+      recordedAt,
+      detail: { type: "formula", formula: { amountMl } },
+    });
+  }
+
+  it("短い睡眠の中央揃えがミルクと重なるときは開始時刻順に積み替える", () => {
+    const nap = sleepRecord(
+      "nap",
+      "2026-08-13T08:11:00+09:00",
+      "2026-08-13T09:11:00+09:00",
+      60,
+    );
+    const milk = formulaRecord("milk", "2026-08-13T09:40:00+09:00", 120);
+    const groups = timelineCardGroups([milk, nap], day);
+    expect(timelineGroupsOverlapHours(groups)).toBe(false);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ startHour: 9, endHour: 9 });
+    expect(groups[0]?.records.map((r) => r.id)).toEqual(["nap", "milk"]);
+  });
+
+  it("長い睡眠の中央から離れたミルクは別の位置のままにする", () => {
+    const nap = sleepRecord(
+      "nap",
+      "2026-08-13T11:02:00+09:00",
+      "2026-08-13T15:02:00+09:00",
+      240,
+    );
+    const milk = formulaRecord("milk", "2026-08-13T09:40:00+09:00", 120);
+    const groups = timelineCardGroups([milk, nap], day);
+    expect(timelineGroupsOverlapHours(groups)).toBe(false);
+    expect(groups.map((g) => g.records.map((r) => r.id))).toEqual([
+      ["milk"],
+      ["nap"],
+    ]);
+    expect(groups[0]).toMatchObject({ startHour: 9, endHour: 9 });
+    expect(groups[1]).toMatchObject({ startHour: 11, endHour: 15 });
+  });
+
+  it("長い睡眠の中央と重なるミルクは開始時刻順に同じ時間へ入れる", () => {
+    const nap = sleepRecord(
+      "nap",
+      "2026-08-13T11:02:00+09:00",
+      "2026-08-13T15:02:00+09:00",
+      240,
+    );
+    const milk = formulaRecord("milk", "2026-08-13T13:10:00+09:00", 120);
+    const groups = timelineCardGroups([milk, nap], day);
+    expect(timelineGroupsOverlapHours(groups)).toBe(false);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ startHour: 13, endHour: 13 });
+    expect(groups[0]?.records.map((r) => r.id)).toEqual(["nap", "milk"]);
+  });
+
+  it("隣り合う時間のミルクは別グループのままにする", () => {
+    const earlier = formulaRecord("a", "2026-08-13T09:10:00+09:00", 80);
+    const later = formulaRecord("b", "2026-08-13T10:10:00+09:00", 90);
+    const groups = timelineCardGroups([later, earlier], day);
+    expect(timelineGroupsOverlapHours(groups)).toBe(false);
+    expect(groups.map((g) => g.records.map((r) => r.id))).toEqual([["a"], ["b"]]);
+  });
+
+  it("睡眠帯の上端にあるミルクは睡眠カードと別の時間に置く", () => {
+    const nap = sleepRecord(
+      "nap",
+      "2026-08-13T08:11:00+09:00",
+      "2026-08-13T09:11:00+09:00",
+      60,
+    );
+    const milk = formulaRecord("milk", "2026-08-13T08:05:00+09:00", 120);
+    const groups = timelineCardGroups([milk, nap], day);
+    expect(timelineGroupsOverlapHours(groups)).toBe(false);
+    expect(groups.map((g) => g.records.map((r) => r.id))).toEqual([
+      ["milk"],
+      ["nap"],
+    ]);
+    expect(groups[0]).toMatchObject({ startHour: 8, endHour: 8 });
+    expect(groups[1]).toMatchObject({ startHour: 9, endHour: 9 });
+    assertNoVerticalOverlap(simulateCardRects(groups));
+  });
+
+  it("スクリーンショットの記録でもカード矩形が重ならない", () => {
+    const shortNap = sleepRecord(
+      "short-nap",
+      "2026-08-13T08:11:00+09:00",
+      "2026-08-13T09:11:00+09:00",
+      60,
+    );
+    const milk = formulaRecord("milk", "2026-08-13T09:40:00+09:00", 120);
+    const longNap = sleepRecord(
+      "long-nap",
+      "2026-08-13T11:02:00+09:00",
+      "2026-08-13T15:02:00+09:00",
+      240,
+    );
+    const groups = timelineCardGroups([milk, shortNap, longNap], day);
+    expect(timelineGroupsOverlapHours(groups)).toBe(false);
+    expect(groups.map((g) => g.records.map((r) => r.id))).toEqual([
+      ["short-nap", "milk"],
+      ["long-nap"],
+    ]);
+    const rects = simulateCardRects(groups);
+    assertNoVerticalOverlap(rects);
+  });
+});
+
+const CARD_HEIGHT_PX = 56;
+const CARD_GAP_PX = 8;
+const GROUP_PAD_PX = 8;
+
+function simulateCardRects(
+  groups: { startHour: number; endHour: number; records: { id: string }[] }[],
+): { id: string; top: number; bottom: number }[] {
+  const cardsInHour = Array.from({ length: 24 }, () => 0);
+  for (const group of groups) {
+    if (group.startHour !== group.endHour) continue;
+    cardsInHour[group.startHour] += group.records.length;
+  }
+  const rowHeights = Array.from({ length: 24 }, (_, hour) => {
+    const n = cardsInHour[hour] ?? 0;
+    if (n > 0) return GROUP_PAD_PX + n * CARD_HEIGHT_PX + (n - 1) * CARD_GAP_PX;
+    const spanned = groups.some(
+      (group) => hour >= group.startHour && hour <= group.endHour,
+    );
+    return spanned ? 40 : 16;
+  });
+  const tops: number[] = [0];
+  for (let hour = 0; hour < 24; hour += 1) {
+    tops.push((tops[hour] ?? 0) + (rowHeights[hour] ?? 0));
+  }
+
+  const rects: { id: string; top: number; bottom: number }[] = [];
+  for (const group of groups) {
+    const cellTop = tops[group.startHour] ?? 0;
+    const cellBottom = tops[group.endHour + 1] ?? cellTop;
+    const n = group.records.length;
+    const content =
+      n * CARD_HEIGHT_PX + Math.max(0, n - 1) * CARD_GAP_PX;
+    let y = cellTop + Math.max(0, cellBottom - cellTop - content) / 2;
+    for (const record of group.records) {
+      rects.push({ id: record.id, top: y, bottom: y + CARD_HEIGHT_PX });
+      y += CARD_HEIGHT_PX + CARD_GAP_PX;
+    }
+  }
+  return rects;
+}
+
+function assertNoVerticalOverlap(
+  rects: { id: string; top: number; bottom: number }[],
+) {
+  const sorted = [...rects].sort((a, b) => a.top - b.top || a.id.localeCompare(b.id));
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = sorted[i - 1];
+    const next = sorted[i];
+    if (!prev || !next) continue;
+    expect(
+      next.top,
+      `${prev.id} (${prev.top}-${prev.bottom}) overlaps ${next.id} (${next.top}-${next.bottom})`,
+    ).toBeGreaterThanOrEqual(prev.bottom);
+  }
+}
